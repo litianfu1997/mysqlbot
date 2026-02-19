@@ -1,27 +1,27 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="System Settings"
+    :title="t('settings.title')"
     width="60%"
     :close-on-click-modal="false"
     append-to-body
   >
     <el-tabs v-model="activeTab" class="settings-tabs">
-      <el-tab-pane label="LLM Configuration" name="llm">
+      <el-tab-pane :label="t('settings.tabs.llm')" name="llm">
         <el-form :model="llmForm" label-width="120px" status-icon>
-          <el-form-item label="Base URL">
+          <el-form-item :label="t('settings.llm.baseUrl')">
             <el-input v-model="llmForm.baseUrl" placeholder="e.g. https://api.openai.com/v1" />
           </el-form-item>
-          <el-form-item label="API Key">
+          <el-form-item :label="t('settings.llm.apiKey')">
             <el-input 
               v-model="llmForm.apiKey" 
               type="password" 
-              placeholder="Internal API Key" 
+              :placeholder="t('settings.llm.apiKey')"
               show-password 
             />
           </el-form-item>
-          <el-form-item label="Model Name">
-            <el-select v-model="llmForm.defaultModel" placeholder="Select Model" allow-create filterable default-first-option>
+          <el-form-item :label="t('settings.llm.model')">
+            <el-select v-model="llmForm.defaultModel" :placeholder="t('settings.llm.model')" allow-create filterable default-first-option>
               <el-option 
                 v-for="(model, alias) in llmForm.modelMap" 
                 :key="alias" 
@@ -30,29 +30,29 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="Temperature">
+          <el-form-item :label="t('settings.llm.temperature')">
             <el-slider v-model="llmForm.temperature" :min="0" :max="1" :step="0.1" show-input />
           </el-form-item>
           <el-form-item>
-            <el-button type="success" :loading="testingLlm" @click="testLlmConnection">Test Connection</el-button>
-            <el-button type="primary" :loading="saving" @click="saveLlmConfig">Save LLM Config</el-button>
+            <el-button type="success" :loading="testingLlm" @click="testLlmConnection">{{ t('settings.llm.testConnection') }}</el-button>
+            <el-button type="primary" :loading="saving" @click="saveLlmConfig">{{ t('common.save') }}</el-button>
           </el-form-item>
         </el-form>
       </el-tab-pane>
 
-      <el-tab-pane label="Data Sources" name="datasource">
+      <el-tab-pane :label="t('settings.tabs.database')" name="datasource">
         <div class="mb-4 flex justify-end">
           <el-button type="primary" @click="openDataSourceDialog()">
-            <el-icon class="mr-1"><Plus /></el-icon> Add Data Source
+            <el-icon class="mr-1"><Plus /></el-icon> {{ t('settings.database.add') }}
           </el-button>
         </div>
         
         <el-table :data="dataSources" style="width: 100%" v-loading="loadingDataSources">
-          <el-table-column prop="name" label="Name" width="150" />
+          <el-table-column prop="name" :label="t('settings.database.name')" width="150" />
           <el-table-column prop="dbType" label="Type" width="100" />
-          <el-table-column prop="host" label="Host" />
-          <el-table-column prop="dbName" label="Database" />
-          <el-table-column label="Actions" width="250">
+          <el-table-column prop="host" :label="t('settings.database.host')" />
+          <el-table-column prop="dbName" :label="t('settings.database.database')" />
+          <el-table-column :label="t('settings.database.actions')" width="250">
             <template #default="scope">
               <el-button 
                 size="small" 
@@ -60,25 +60,36 @@
                 :loading="syncing[scope.row.id]"
                 @click="syncSchema(scope.row)"
               >
-                Sync
+                {{ t('settings.database.sync') }}
               </el-button>
-              <el-button size="small" @click="openDataSourceDialog(scope.row)">Edit</el-button>
-              <el-button size="small" type="danger" @click="deleteDataSource(scope.row.id)">Delete</el-button>
+              <el-button size="small" @click="openDataSourceDialog(scope.row)">{{ t('settings.database.edit') }}</el-button>
+              <el-button size="small" type="danger" @click="deleteDataSource(scope.row.id)">{{ t('common.delete') }}</el-button>
             </template>
           </el-table-column>
         </el-table>
+      </el-tab-pane>
+      
+      <el-tab-pane :label="t('settings.tabs.system')" name="system">
+          <el-form label-width="120px">
+              <el-form-item :label="t('settings.system.language')">
+                  <el-select v-model="locale">
+                      <el-option label="English" value="en" />
+                      <el-option label="中文" value="zh" />
+                  </el-select>
+              </el-form-item>
+          </el-form>
       </el-tab-pane>
     </el-tabs>
 
     <!-- Data Source Edit Dialog -->
     <el-dialog
       v-model="dsDialogVisible"
-      :title="editingDataSource ? 'Edit Data Source' : 'Add Data Source'"
+      :title="editingDataSource ? t('settings.database.edit') : t('settings.database.add')"
       width="500px"
       append-to-body
     >
       <el-form :model="dsForm" label-width="100px">
-        <el-form-item label="Name">
+        <el-form-item :label="t('settings.database.name')">
           <el-input v-model="dsForm.name" placeholder="My Database" />
         </el-form-item>
         <el-form-item label="Type">
@@ -87,27 +98,27 @@
             <el-option label="PostgreSQL" value="postgresql" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Host">
+        <el-form-item :label="t('settings.database.host')">
           <el-input v-model="dsForm.host" placeholder="localhost" />
         </el-form-item>
-        <el-form-item label="Port">
+        <el-form-item :label="t('settings.database.port')">
           <el-input-number v-model="dsForm.port" :min="1" :max="65535" />
         </el-form-item>
-        <el-form-item label="Database">
+        <el-form-item :label="t('settings.database.database')">
           <el-input v-model="dsForm.dbName" placeholder="db_name" />
         </el-form-item>
-        <el-form-item label="Username">
+        <el-form-item :label="t('settings.database.username')">
           <el-input v-model="dsForm.username" placeholder="root" />
         </el-form-item>
-        <el-form-item label="Password">
+        <el-form-item :label="t('settings.database.password')">
           <el-input v-model="dsForm.password" type="password" show-password />
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="dsDialogVisible = false">Cancel</el-button>
-          <el-button type="success" :loading="testingConnection" @click="testConnection">Test Connection</el-button>
-          <el-button type="primary" :loading="savingDs" @click="saveDataSource">Save</el-button>
+          <el-button @click="dsDialogVisible = false">{{ t('common.cancel') }}</el-button>
+          <el-button type="success" :loading="testingConnection" @click="testConnection">{{ t('settings.database.test') }}</el-button>
+          <el-button type="primary" :loading="savingDs" @click="saveDataSource">{{ t('common.save') }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -120,6 +131,9 @@ import { ref, watch, onMounted } from 'vue'
 import { configApi, dataSourceApi, type DataSource } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
+
+const { t, locale } = useI18n()
 
 const visible = ref(false)
 const activeTab = ref('llm')

@@ -2,14 +2,14 @@
   <div class="message" :class="{ 'message-user': message.role === 'user', 'message-assistant': message.role === 'assistant' }">
     <div class="message-content">
       <!-- Role Label -->
-      <div class="role-label">{{ message.role === 'user' ? 'User' : 'MySqlBot' }}</div>
+      <div class="role-label">{{ message.role === 'user' ? $t('chat.user') : $t('chat.assistant') }}</div>
 
       <!-- Text Content (Markdown) -->
       <div v-html="renderMarkdown(message.content)" class="markdown-body"></div>
 
       <!-- SQL Query -->
       <div v-if="message.sqlQuery" class="sql-block">
-        <div class="sql-header">Generated SQL</div>
+        <div class="sql-header">{{ $t('chat.generatedSql') }}</div>
         <pre><code class="language-sql">{{ message.sqlQuery }}</code></pre>
       </div>
 
@@ -18,38 +18,8 @@
 
       <!-- Data Analysis -->
       <div v-if="message.analysis" class="analysis-block">
-        <div class="analysis-header"><b>Analysis</b></div>
+        <div class="analysis-header"><b>{{ $t('chat.analysis') }}</b></div>
         <div v-html="renderMarkdown(message.analysis)"></div>
-      </div>
-
-      <!-- Chart (Bar/Line/Pie) -->
-      <!-- Show if chartType exists, OR if we have data (to allow generation) -->
-      <div v-if="(message.chartType && message.chartType !== 'Table') || (parsedResult && parsedResult.rows && parsedResult.rows.length > 0 && !message.chartType)" class="chart-block">
-        
-        <!-- Case 1: Analysis not done yet -->
-        <div v-if="!message.chartType && !analyzing" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
-           <div class="text-sm text-gray-500 mb-2">生成数据分析与图表（需要调用 AI 模型）</div>
-           <el-button type="primary" size="small" @click="handleAnalyze">
-             生成图表
-           </el-button>
-        </div>
-
-         <!-- Case 2: Analyzing -->
-        <div v-else-if="analyzing" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
-           <el-icon class="is-loading mb-2 text-blue-500" style="font-size: 24px"><Loading /></el-icon>
-           <div class="text-sm text-gray-500">正在分析数据...</div>
-        </div>
-
-        <!-- Case 3: Chart ready but hidden (toggle) -->
-        <div v-else-if="!showChart" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
-           <div class="text-sm text-gray-500 mb-2">检测到 {{ message.chartType }} 图表</div>
-           <el-button type="primary" size="small" @click="showChart = true">
-             显示图表
-           </el-button>
-        </div>
-        
-        <!-- Case 4: Chart visible -->
-        <div v-else ref="chartRef" style="width: 100%; height: 300px;"></div>
       </div>
 
       <!-- Table: always show when there is data -->
@@ -57,7 +27,37 @@
         <el-table :data="parsedResult.rows" border style="width: 100%" height="300" stripe>
            <el-table-column v-for="col in parsedResult.columns" :key="col" :prop="col" :label="col" show-overflow-tooltip />
         </el-table>
-        <div class="text-xs text-gray-500 mt-1">共返回 {{ parsedResult.rowCount }} 行</div>
+        <div class="text-xs text-gray-500 mt-1">{{ $t('chat.rowCount', { count: parsedResult.rowCount }) }}</div>
+      </div>
+
+      <!-- Chart (Bar/Line/Pie) -->
+      <!-- Show if chartType exists, OR if we have data (to allow generation) -->
+      <div v-if="(message.chartType && message.chartType !== 'Table') || (parsedResult && parsedResult.rows && parsedResult.rows.length > 0 && !message.chartType)" class="chart-block mt-2">
+        
+        <!-- Case 1: Analysis not done yet -->
+        <div v-if="!message.chartType && !analyzing" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
+           <div class="text-sm text-gray-500 mb-2">{{ $t('chat.generateChart') }} (AI)</div>
+           <el-button type="primary" size="small" @click="handleAnalyze">
+             {{ $t('chat.generateChart') }}
+           </el-button>
+        </div>
+
+         <!-- Case 2: Analyzing -->
+        <div v-else-if="analyzing" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
+           <el-icon class="is-loading mb-2 text-blue-500" style="font-size: 24px"><Loading /></el-icon>
+           <div class="text-sm text-gray-500">{{ $t('chat.analyzing') }}</div>
+        </div>
+
+        <!-- Case 3: Chart ready but hidden (toggle) -->
+        <div v-else-if="!showChart" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
+           <div class="text-sm text-gray-500 mb-2">{{ $t('chat.chartGenerated', { chartType: message.chartType }) }}</div>
+           <el-button type="primary" size="small" @click="showChart = true">
+             {{ $t('chat.showChart') }}
+           </el-button>
+        </div>
+        
+        <!-- Case 4: Chart visible -->
+        <div v-else ref="chartRef" style="width: 100%; height: 300px;"></div>
       </div>
       
        <!-- Suggested Questions -->

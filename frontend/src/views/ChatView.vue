@@ -9,11 +9,11 @@
           </div>
           
           <el-button type="primary" class="new-chat-btn mb-4 w-full shadow-sm" @click="createNewSession">
-            <el-icon class="mr-2"><Plus /></el-icon> New Chat
+            <el-icon class="mr-2"><Plus /></el-icon> {{ t('chat.newChat') }}
           </el-button>
           
           <div class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-             <div v-if="chatStore.loading && chatStore.sessions.length === 0" class="p-4 text-center text-gray-400">Loading...</div>
+             <div v-if="chatStore.loading && chatStore.sessions.length === 0" class="p-4 text-center text-gray-400">{{ t('common.loading') }}</div>
              <ul class="session-list">
                <li 
                  v-for="s in chatStore.sessions" 
@@ -30,7 +30,7 @@
           </div>
           
 
-          <el-tooltip content="System Settings" placement="top" :show-after="400">
+          <el-tooltip :content="t('settings.title')" placement="top" :show-after="400">
             <div class="settings-btn" @click="openSettings">
               <el-icon class="mr-1"><Setting /></el-icon> MySqlBot v1.0.0
             </div>
@@ -54,7 +54,7 @@
                </div>
                <template #dropdown>
                  <el-dropdown-menu>
-                   <div class="px-3 pt-2 pb-1 text-xs text-gray-400 font-medium">Switch Data Source</div>
+                   <div class="px-3 pt-2 pb-1 text-xs text-gray-400 font-medium">{{ t('chat.switchDataSource') }}</div>
                    <el-dropdown-item
                      v-for="ds in dataSources"
                      :key="ds.id"
@@ -65,7 +65,7 @@
                      <el-icon v-if="ds.id === currentSessionDataSourceId" style="margin-left:8px;color:#3b82f6"><Check /></el-icon>
                    </el-dropdown-item>
                    <el-dropdown-item divided command="__manage__">
-                     <el-icon class="mr-1"><Setting /></el-icon> Manage Data Sources...
+                     <el-icon class="mr-1"><Setting /></el-icon> {{ t('chat.manageDataSources') }}
                    </el-dropdown-item>
                  </el-dropdown-menu>
                </template>
@@ -77,27 +77,27 @@
                  <!-- Empty State -->
                  <div v-if="chatStore.messages.length === 0" class="empty-state">
                     <div class="text-5xl mb-6 text-blue-200"><el-icon><Monitor /></el-icon></div>
-                    <div class="text-2xl font-semibold text-gray-700 mb-2">MySqlBot Intelligence</div>
+                    <div class="text-2xl font-semibold text-gray-700 mb-2">{{ t('chat.welcomeTitle') }}</div>
                     <div class="text-gray-500 mb-10 max-w-md text-center">
-                        I can analyze your data, generate SQL snippets, create charts, and answer questions.
+                        {{ t('chat.welcomeText') }}
                     </div>
                     
                     <div class="grid grid-cols-2 gap-4 max-w-2xl w-full">
                        <div class="suggestion-card" @click="send('List top 5 products by sales')">
-                           <div class="font-medium mb-1">Top Products</div>
-                           <div class="text-xs text-gray-500">List top 5 products by sales volume</div>
+                           <div class="font-medium mb-1">{{ t('chat.exampleTitles.topProducts') }}</div>
+                           <div class="text-xs text-gray-500">{{ t('chat.examples.topProducts') }}</div>
                        </div>
                        <div class="suggestion-card" @click="send('Trend analysis for last year')">
-                           <div class="font-medium mb-1">Trend Analysis</div>
-                           <div class="text-xs text-gray-500">Show monthly trend for last year</div>
+                           <div class="font-medium mb-1">{{ t('chat.exampleTitles.trendAnalysis') }}</div>
+                           <div class="text-xs text-gray-500">{{ t('chat.examples.trendAnalysis') }}</div>
                        </div>
                        <div class="suggestion-card" @click="send('Analyze user retention rate')">
-                           <div class="font-medium mb-1">User Growth</div>
-                           <div class="text-xs text-gray-500">Analyze user retention rate</div>
+                           <div class="font-medium mb-1">{{ t('chat.exampleTitles.userGrowth') }}</div>
+                           <div class="text-xs text-gray-500">{{ t('chat.examples.userGrowth') }}</div>
                        </div>
                        <div class="suggestion-card" @click="send('Show revenue distribution by region')">
-                           <div class="font-medium mb-1">Revenue</div>
-                           <div class="text-xs text-gray-500">Show revenue distribution by region</div>
+                           <div class="font-medium mb-1">{{ t('chat.exampleTitles.revenue') }}</div>
+                           <div class="text-xs text-gray-500">{{ t('chat.examples.revenue') }}</div>
                        </div>
                     </div>
                  </div>
@@ -110,7 +110,7 @@
                  />
                  
                  <div v-if="chatStore.loading" class="loading-indicator">
-                    <el-icon class="is-loading mr-2"><Loading /></el-icon> Thinking...
+                    <el-icon class="is-loading mr-2"><Loading /></el-icon> {{ t('chat.analyzing') }}
                  </div>
             </div>
             
@@ -120,7 +120,7 @@
                         v-model="input"
                         type="textarea"
                         :autosize="{ minRows: 1, maxRows: 6 }"
-                        placeholder="Ask a question about your data..."
+                        :placeholder="t('chat.inputPlaceholder')"
                         resize="none"
                         class="chat-input shadow-lg"
                         @keydown.enter.prevent="handleEnter"
@@ -141,9 +141,9 @@
     </el-container>
     
     <!-- DataSource Selection Dialog -->
-    <el-dialog v-model="dialogVisible" title="Select Data Source" width="30%" align-center>
+    <el-dialog v-model="dialogVisible" :title="t('chat.selectDb')" width="30%" align-center>
         <div class="p-4">
-            <div class="mb-2 text-gray-600">Choose a database to start chatting:</div>
+            <div class="mb-2 text-gray-600">{{ t('chat.selectDb') }}</div>
             <el-select v-model="selectedDataSourceId" placeholder="Select a database" class="w-full">
                 <el-option
                     v-for="item in dataSources"
@@ -155,9 +155,9 @@
         </div>
         <template #footer>
             <span class="dialog-footer">
-                <el-button @click="dialogVisible = false">Cancel</el-button>
+                <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
                 <el-button type="primary" @click="confirmCreateSession" :disabled="!selectedDataSourceId">
-                    Start Chat
+                    {{ t('chat.startChat') }}
                 </el-button>
             </span>
         </template>
@@ -174,7 +174,9 @@ import SettingsDialog from '@/components/SettingsDialog.vue'
 import { dataSourceApi, type DataSource } from '@/api'
 import { Plus, ChatDotRound, Monitor, Loading, Position, DataAnalysis, Setting, DataBoard, DataLine, ArrowDown, Check, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const chatStore = useChatStore()
 const input = ref('')
 const scrollRef = ref<HTMLElement | null>(null)
