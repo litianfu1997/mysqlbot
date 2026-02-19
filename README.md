@@ -127,3 +127,10 @@ npm run dev
 ## 📄 开源协议
 
 基于 [MIT License](LICENSE) 协议。
+
+---
+
+## 🙏 鸣谢
+
+本项目深受 [SQLBot](https://github.com/dataease/SQLBot) 启发，并参考了其优秀的 Prompt 设计思路与整体架构模式，在此表示衷心的感谢！
+
