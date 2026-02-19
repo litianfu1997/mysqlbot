@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  app:
+    build: .
+    container_name: mysqlbot-app
+    restart: always
+    ports:
+      - "8080:8080"
+    # 不再使用 environment 覆盖配置，直接使用打包进镜像的 application.yml
+    # 其中包含了具体的数据库连接信息 (mysql 和 pgvector)
+
+  # 前端服务
+  frontend:
+    build: ./frontend
+    container_name: mysqlbot-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+
+networks:
+  default:
+    name: mysqlbot-network

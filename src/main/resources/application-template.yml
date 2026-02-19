@@ -1,0 +1,84 @@
+server:
+  port: 8080
+
+spring:
+  autoconfigure:
+    exclude: org.springframework.ai.autoconfigure.vectorstore.pgvector.PgVectorStoreAutoConfiguration
+  application:
+    name: MySqlBot
+
+  # ===== 主数据库 (MySQL - 存储配置、会话等) =====
+  datasource:
+    url: jdbc:mysql://localhost:3306/mysqlbot?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+  # ===== Spring AI - LLM 配置 =====
+  ai:
+    openai:
+      # 使用 DeepSeek (兼容 OpenAI 协议)
+      # 也可换成 https://api.openai.com 或 https://dashscope.aliyuncs.com/compatible-mode/v1 (通义千问)
+      base-url: https://open.bigmodel.cn/api/paas/v4
+      api-key: ${ZHIPU_API_KEY:your_api_key_here}
+      chat:
+        options:
+          model: glm-4
+          temperature: 0.6
+          max-tokens: 2048
+      embedding:
+        options:
+          model: embedding-3
+
+    # ===== PgVector 向量数据库 =====
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: 1536  # OpenAI text-embedding-3-small 维度
+        initialize-schema: true
+
+  # ===== PgVector 数据库连接 =====
+  datasource-pgvector:
+    url: jdbc:postgresql://localhost:5432/mysqlbot_vector
+    username: postgres
+    password: ${PG_PASSWORD:postgres}
+
+# ===== MySqlBot 自定义配置 =====
+mysqlbot:
+  # SQL 执行安全配置
+  sql:
+    # 只允许 SELECT 查询
+    allow-only-select: true
+    # 查询结果最大行数
+    max-rows: 1000
+    # 查询超时（秒）
+    timeout-seconds: 30
+    # LLM 生成 SQL 失败后最大重试次数
+    max-retry: 3
+  # RAG 检索配置
+  rag:
+    # 是否启用 RAG（关闭后直接传空 Schema 给 LLM）
+    enabled: true
+    # 检索最相关的 Schema 片段数量
+    top-k: 5
+    # 相似度阈值
+    similarity-threshold: 0.5
+
+
+logging:
+  level:
+    com.example.mysqlbot: DEBUG
+    org.springframework.ai: INFO
