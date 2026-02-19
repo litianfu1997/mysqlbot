@@ -23,8 +23,33 @@
       </div>
 
       <!-- Chart (Bar/Line/Pie) -->
-      <div v-if="message.chartType && message.sqlResult && message.chartType !== 'Table'" class="chart-block">
-        <div ref="chartRef" style="width: 100%; height: 300px;"></div>
+      <!-- Show if chartType exists, OR if we have data (to allow generation) -->
+      <div v-if="(message.chartType && message.chartType !== 'Table') || (parsedResult && parsedResult.rows && parsedResult.rows.length > 0 && !message.chartType)" class="chart-block">
+        
+        <!-- Case 1: Analysis not done yet -->
+        <div v-if="!message.chartType && !analyzing" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
+           <div class="text-sm text-gray-500 mb-2">生成数据分析与图表（需要调用 AI 模型）</div>
+           <el-button type="primary" size="small" @click="handleAnalyze">
+             生成图表
+           </el-button>
+        </div>
+
+         <!-- Case 2: Analyzing -->
+        <div v-else-if="analyzing" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
+           <el-icon class="is-loading mb-2 text-blue-500" style="font-size: 24px"><Loading /></el-icon>
+           <div class="text-sm text-gray-500">正在分析数据...</div>
+        </div>
+
+        <!-- Case 3: Chart ready but hidden (toggle) -->
+        <div v-else-if="!showChart" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
+           <div class="text-sm text-gray-500 mb-2">检测到 {{ message.chartType }} 图表</div>
+           <el-button type="primary" size="small" @click="showChart = true">
+             显示图表
+           </el-button>
+        </div>
+        
+        <!-- Case 4: Chart visible -->
+        <div v-else ref="chartRef" style="width: 100%; height: 300px;"></div>
       </div>
 
       <!-- Table: always show when there is data -->
@@ -56,15 +81,19 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, nextTick } from 'vue'
 import { type ChatMessage } from '@/api'
+import { useChatStore } from '@/store/chat'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import * as echarts from 'echarts'
+import { Loading } from '@element-plus/icons-vue'
 
 const props = defineProps<{
   message: ChatMessage
 }>()
 
 const emit = defineEmits(['ask'])
+const chatStore = useChatStore()
+const analyzing = ref(false)
 
 const md = new MarkdownIt({
   html: true,
@@ -105,16 +134,50 @@ const suggestedQuestions = computed(() => {
 // Chart Logic
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
+const showChart = ref(false)
 
-watch(() => props.message, () => {
-    nextTick(() => renderChart())
-}, { flush: 'post', deep: true })
+// If chartType is already present (e.g. from history), default showChart to false (require click)
+// Or if the user just clicked "Analyze", we might want to auto-show. 
+// Let's watch for chartType changes.
 
-onMounted(() => {
-  nextTick(() => renderChart())
+watch(() => props.message.chartType, (newVal) => {
+    if (newVal && newVal !== 'Table') {
+        // If we were analyzing, auto show
+        if (analyzing.value) {
+            analyzing.value = false
+            showChart.value = true
+        }
+    }
 })
 
+watch(() => props.message, () => {
+    if (showChart.value) {
+        nextTick(() => renderChart())
+    }
+}, { flush: 'post', deep: true })
+
+watch(showChart, (val) => {
+    if (val) {
+        nextTick(() => renderChart())
+    }
+})
+
+onMounted(() => {
+  if (showChart.value) {
+     nextTick(() => renderChart())
+  }
+})
+
+async function handleAnalyze() {
+    if (!props.message.id) return
+    analyzing.value = true
+    await chatStore.analyzeMessage(props.message.id)
+    analyzing.value = false
+    // showChart.value will be set to true by the watcher if successful
+}
+
 function renderChart() {
+  if (!showChart.value) return
   if (!props.message.chartType || props.message.chartType === 'Table' || !parsedResult.value || !chartRef.value) return
   
   if (chartInstance) {
@@ -232,4 +295,15 @@ function renderChart() {
 .mt-1 { margin-top: 4px; }
 .text-xs { font-size: 12px; }
 .text-gray-500 { color: #888; }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.p-4 { padding: 16px; }
+.bg-gray-50 { background-color: #f9fafb; }
+.rounded { border-radius: 4px; }
+.border { border-width: 1px; border-style: solid; }
+.border-gray-200 { border-color: #e5e7eb; }
+.text-sm { font-size: 14px; }
+.mb-2 { margin-bottom: 8px; }
 </style>

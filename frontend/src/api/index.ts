@@ -58,6 +58,9 @@ export const chatApi = {
     sendMessage: (sessionId: string, content: string) => {
         return api.post<ChatMessage>(`/chat/sessions/${sessionId}/messages`, { content })
     },
+    analyzeMessage: (messageId: number) => {
+        return api.post<ChatMessage>(`/chat/messages/${messageId}/analyze`)
+    },
     deleteSession: (sessionId: string) => {
         return api.delete(`/chat/sessions/${sessionId}`)
     }

@@ -67,6 +67,23 @@ public class ChatController {
     }
 
     /**
+     * 分析消息（生成图表）
+     */
+    @PostMapping("/messages/{messageId}/analyze")
+    public ResponseEntity<ChatMessage> analyzeMessage(@PathVariable Long messageId) {
+        try {
+            ChatMessage response = chatService.analyzeMessage(messageId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ChatMessage errorRes = ChatMessage.builder()
+                    .id(messageId)
+                    .errorMsg(e.getMessage())
+                    .build();
+            return ResponseEntity.ok(errorRes);
+        }
+    }
+
+    /**
      * 删除会话
      */
     @DeleteMapping("/sessions/{sessionId}")

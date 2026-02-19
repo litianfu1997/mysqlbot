@@ -123,30 +123,16 @@ public class ChatService {
             // ... (Success handling code mostly same as before) ...
             String resultJson = null;
             String content = generateResult.getExplanation();
-            String analysisResultText = null;
-            String chartType = null;
-            String xAxis = null;
-            String yAxis = null;
+            // String analysisResultText = null;
+            // String chartType = null;
+            // String xAxis = null;
+            // String yAxis = null;
             String suggestQuestionsJson = null;
 
             try {
                 resultJson = objectMapper.writeValueAsString(executeResult);
             } catch (Exception e) {
                 resultJson = "{}";
-            }
-
-            // 6. 执行数据分析与图表推荐
-            try {
-                DataAnalysisService.AnalysisResult analysis = dataAnalysisService.analyze(
-                        userQuestion,
-                        generateResult.getSql(),
-                        executeResult.getRows());
-                analysisResultText = analysis.getInsight();
-                chartType = analysis.getChartType();
-                xAxis = analysis.getXAxis();
-                yAxis = analysis.getYAxis();
-            } catch (Exception e) {
-                log.error("数据分析失败", e);
             }
 
             // 7. 生成推荐问题 (Phase 2)
@@ -163,10 +149,10 @@ public class ChatService {
                     .content(content)
                     .sqlQuery(generateResult.getSql())
                     .sqlResult(resultJson)
-                    .analysis(analysisResultText)
-                    .chartType(chartType)
-                    .xAxis(xAxis)
-                    .yAxis(yAxis)
+                    // .analysis(analysisResultText) // DEFERRED
+                    // .chartType(chartType) // DEFERRED
+                    // .xAxis(xAxis) // DEFERRED
+                    // .yAxis(yAxis) // DEFERRED
                     .suggestQuestions(suggestQuestionsJson)
                     .build();
 
@@ -194,6 +180,69 @@ public class ChatService {
         }
 
         return assistantMsg;
+    }
+
+    /**
+     * 对特定消息进行数据分析（图表生成）
+     */
+    @Transactional
+    public ChatMessage analyzeMessage(Long messageId) {
+        ChatMessage message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new RuntimeException("消息不存在: " + messageId));
+
+        if (message.getSqlResult() == null) {
+            throw new RuntimeException("该消息没有数据可分析");
+        }
+
+        // 尝试找到对应的用户提问
+        // 简单逻辑：找该消息之前的最近一条 User 消息
+        // 如果找不到，就用空字符串，虽然分析效果可能打折，但有了 SQL 和数据也够了
+        String userQuestion = "";
+        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(message.getSessionId());
+        // 找到当前消息的 index
+        int currentIndex = -1;
+        for (int i = 0; i < history.size(); i++) {
+            if (history.get(i).getId().equals(messageId)) {
+                currentIndex = i;
+                break;
+            }
+        }
+        // 往前找 User 消息
+        if (currentIndex > 0) {
+            for (int i = currentIndex - 1; i >= 0; i--) {
+                if ("user".equals(history.get(i).getRole())) {
+                    userQuestion = history.get(i).getContent();
+                    break;
+                }
+            }
+        }
+
+        try {
+            // 解析 SQL Result JSON
+            SqlExecuteService.SqlExecuteResult executeResult = objectMapper.readValue(message.getSqlResult(),
+                    SqlExecuteService.SqlExecuteResult.class);
+            List<java.util.Map<String, Object>> rows = executeResult.getRows();
+
+            if (rows == null || rows.isEmpty()) {
+                throw new RuntimeException("结果集中没有数据");
+            }
+
+            DataAnalysisService.AnalysisResult analysis = dataAnalysisService.analyze(
+                    userQuestion,
+                    message.getSqlQuery(),
+                    rows);
+
+            message.setAnalysis(analysis.getInsight());
+            message.setChartType(analysis.getChartType());
+            message.setXAxis(analysis.getXAxis());
+            message.setYAxis(analysis.getYAxis());
+
+            return messageRepository.save(message);
+
+        } catch (Exception e) {
+            log.error("分析失败", e);
+            throw new RuntimeException("分析失败: " + e.getMessage());
+        }
     }
 
     /**

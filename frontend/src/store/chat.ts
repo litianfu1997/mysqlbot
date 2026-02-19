@@ -80,5 +80,18 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
-    return { sessions, currentSessionId, messages, loading, fetchSessions, createSession, selectSession, sendMessage, deleteSession }
+    async function analyzeMessage(messageId: number) {
+        try {
+            const res = await chatApi.analyzeMessage(messageId)
+            // Update message in list
+            const idx = messages.value.findIndex(m => m.id === messageId)
+            if (idx !== -1) {
+                messages.value[idx] = res.data
+            }
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    return { sessions, currentSessionId, messages, loading, fetchSessions, createSession, selectSession, sendMessage, deleteSession, analyzeMessage }
 })
