@@ -82,5 +82,6 @@ export const dataSourceApi = {
     delete: (id: number) => api.delete(`/datasource/${id}`),
     testConnection: (id: number) => api.post(`/datasource/${id}/test`),
     testAdHocConnection: (data: DataSource) => api.post('/datasource/test-connection', data),
-    syncSchema: (id: number) => api.post(`/datasource/${id}/sync-schema`)
+    syncSchema: (id: number) => api.post(`/datasource/${id}/sync-schema`),
+    getSyncProgress: (id: number) => api.get(`/datasource/${id}/sync-progress`)
 }

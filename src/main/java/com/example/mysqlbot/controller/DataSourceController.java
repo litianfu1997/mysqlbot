@@ -88,15 +88,23 @@ public class DataSourceController {
     }
 
     /**
-     * 同步数据源 Schema 到向量数据库
+     * 同步数据源 Schema 到向量数据库 (异步)
      */
     @PostMapping("/{id}/sync-schema")
     public ResponseEntity<Map<String, Object>> syncSchema(@PathVariable Long id) {
         try {
             schemaService.syncSchema(id);
-            return ResponseEntity.ok(Map.of("success", true, "message", "Schema 同步成功"));
+            return ResponseEntity.ok(Map.of("success", true, "message", "Schema 同步已在后台启动"));
         } catch (Exception e) {
             return ResponseEntity.ok(Map.of("success", false, "message", e.getMessage()));
         }
+    }
+
+    /**
+     * 获取同步进度
+     */
+    @GetMapping("/{id}/sync-progress")
+    public ResponseEntity<SchemaService.SyncProgress> getSyncProgress(@PathVariable Long id) {
+        return ResponseEntity.ok(schemaService.getSyncProgress(id));
     }
 }

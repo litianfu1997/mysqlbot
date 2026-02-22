@@ -52,18 +52,31 @@
           <el-table-column prop="dbType" label="Type" width="100" />
           <el-table-column prop="host" :label="t('settings.database.host')" />
           <el-table-column prop="dbName" :label="t('settings.database.database')" />
-          <el-table-column :label="t('settings.database.actions')" width="250">
+          <el-table-column :label="t('settings.database.actions')" width="300">
             <template #default="scope">
-              <el-button 
-                size="small" 
-                type="warning" 
-                :loading="syncing[scope.row.id]"
-                @click="syncSchema(scope.row)"
-              >
-                {{ t('settings.database.sync') }}
-              </el-button>
-              <el-button size="small" @click="openDataSourceDialog(scope.row)">{{ t('settings.database.edit') }}</el-button>
-              <el-button size="small" type="danger" @click="deleteDataSource(scope.row.id)">{{ t('common.delete') }}</el-button>
+              <div v-if="syncing[scope.row.id]" class="sync-progress-box">
+                <el-progress 
+                   :percentage="calculatePercentage(syncProgress[scope.row.id])" 
+                   :status="syncProgress[scope.row.id]?.status === 'error' ? 'exception' : (syncProgress[scope.row.id]?.status === 'done' ? 'success' : '')"
+                   :stroke-width="16"
+                   :text-inside="true"
+                />
+                <div class="sync-status">
+                  <span class="sync-state-text" :class="syncProgress[scope.row.id]?.status">{{ getStatusLabel(syncProgress[scope.row.id]) }}</span>
+                  <span class="sync-table-name" :title="syncProgress[scope.row.id]?.currentTable">{{ syncProgress[scope.row.id]?.currentTable || '请稍候...' }}</span>
+                </div>
+              </div>
+              <div v-else>
+                <el-button 
+                  size="small" 
+                  type="warning" 
+                  @click="startSyncSchema(scope.row)"
+                >
+                  {{ t('settings.database.sync') }}
+                </el-button>
+                <el-button size="small" @click="openDataSourceDialog(scope.row)">{{ t('settings.database.edit') }}</el-button>
+                <el-button size="small" type="danger" @click="deleteDataSource(scope.row.id)">{{ t('common.delete') }}</el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -157,6 +170,8 @@ const editingDataSource = ref(false)
 const savingDs = ref(false)
 const testingConnection = ref(false)
 const syncing = ref<Record<number, boolean>>({})
+const syncProgress = ref<Record<number, any>>({})
+const activeIntervals = ref<Record<number, number>>({})
 
 const dsForm = ref<DataSource>({
   name: '',
@@ -301,28 +316,80 @@ async function saveDataSource() {
     ElMessage.success('Data Source saved')
     dsDialogVisible.value = false
     fetchDataSources()
-  } catch (e) {
-    ElMessage.error('Failed to save data source')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || 'Failed to save data source')
   } finally {
     savingDs.value = false
   }
 }
 
-async function syncSchema(row: DataSource) {
+const calculatePercentage = (progress: any) => {
+    if (!progress) return 0
+    if (progress.completed) return 100
+    if (progress.status === 'extracting') {
+        // 在提取阶段假进度，最多到 15%
+        return Math.min(15, (progress.totalTables || 1) * 2)
+    }
+    if (progress.totalTables && progress.totalTables > 0) {
+        let p = Math.round(((progress.processedTables || 0) / progress.totalTables) * 100)
+        // 保证在 embedding 的时候基础有 15%，但不超过 99% (除非完成)
+        return Math.min(Math.max(p, 15), 99)
+    }
+    return 0
+}
+
+const getStatusLabel = (progress: any) => {
+    if (!progress) return '准备中...'
+    if (progress.status === 'extracting') return '🚀 提取表结构'
+    if (progress.status === 'embedding') return '🧠 向量化模型处理'
+    if (progress.status === 'done') return '✅ 同步完成'
+    if (progress.status === 'error') return '❌ 同步失败'
+    return '处理中...'
+}
+
+const pollProgress = (id: number) => {
+    if (activeIntervals.value[id]) return
+    
+    activeIntervals.value[id] = window.setInterval(async () => {
+        try {
+            const res = await dataSourceApi.getSyncProgress(id)
+            syncProgress.value[id] = res.data
+            
+            if (res.data && res.data.completed) {
+                window.clearInterval(activeIntervals.value[id])
+                delete activeIntervals.value[id]
+                syncing.value[id] = false
+                
+                if (res.data.status === 'error') {
+                    ElMessage.error(`同步失败: ${res.data.error || '未知错误'}`)
+                } else {
+                    ElMessage.success('Schema 同步完成！')
+                    fetchDataSources()
+                }
+            }
+        } catch(e) {
+            console.error("Failed to query progress", e)
+        }
+    }, 1500)
+}
+
+async function startSyncSchema(row: DataSource) {
   if (!row.id) return
   syncing.value[row.id] = true
+  syncProgress.value[row.id] = { status: 'starting' } // initialize
+  
   try {
     const res = await dataSourceApi.syncSchema(row.id)
     if (res.data && (res.data as any).success) {
-      ElMessage.success('Schema synced successfully')
-      fetchDataSources()
+      ElMessage.success('同步进程已在后台启动')
+      pollProgress(row.id)
     } else {
-      ElMessage.error((res.data as any).message || 'Failed to sync schema')
+      ElMessage.error((res.data as any).message || 'Failed to start sync')
+      syncing.value[row.id] = false
     }
   } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || 'Failed to sync schema')
-  } finally {
-    if (row.id) syncing.value[row.id] = false
+    ElMessage.error(e.response?.data?.message || 'Failed to start sync')
+    syncing.value[row.id] = false
   }
 }
 
@@ -349,4 +416,40 @@ async function deleteDataSource(id: number) {
 .mr-1 { margin-right: 0.25rem; }
 .flex { display: flex; }
 .justify-end { justify-content: flex-end; }
+.sync-progress-box {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 4px 0;
+}
+.sync-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #666;
+  margin-top: 6px;
+}
+.sync-table-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #999;
+}
+.sync-state-text {
+  font-weight: bold;
+}
+.sync-state-text.extracting {
+  color: #E6A23C;
+}
+.sync-state-text.embedding {
+  color: #409EFF;
+}
+.sync-state-text.done {
+  color: #67C23A;
+}
+.sync-state-text.error {
+  color: #F56C6C;
+}
 </style>

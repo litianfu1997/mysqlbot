@@ -41,7 +41,6 @@ public class VectorStoreService {
      * @param metaMap      附加元数据
      * @return 插入的记录 ID
      */
-    @Transactional
     public Long addDocument(String content, Long dataSourceId, String docType, Map<String, Object> metaMap) {
         // 1. 生成 embedding
         float[] vector = embeddingService.embed(content);
@@ -72,7 +71,6 @@ public class VectorStoreService {
     /**
      * 批量添加文档（高效批量 embedding）
      */
-    @Transactional
     public void addDocuments(List<String> contents, Long dataSourceId, String docType,
             List<Map<String, Object>> metaMaps) {
         if (contents.isEmpty())
@@ -105,7 +103,6 @@ public class VectorStoreService {
     /**
      * 删除指定数据源和类型的所有文档
      */
-    @Transactional
     public void deleteByDataSourceAndType(Long dataSourceId, String docType) {
         int deleted = jdbcTemplate.update(
                 "DELETE FROM vector_store WHERE data_source_id = ? AND doc_type = ?",
@@ -116,7 +113,6 @@ public class VectorStoreService {
     /**
      * 删除指定数据源的所有文档
      */
-    @Transactional
     public void deleteByDataSource(Long dataSourceId) {
         int deleted = jdbcTemplate.update(
                 "DELETE FROM vector_store WHERE data_source_id = ?", dataSourceId);

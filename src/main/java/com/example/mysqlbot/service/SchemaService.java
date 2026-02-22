@@ -25,10 +25,43 @@ public class SchemaService {
     private final DataSourceRepository dataSourceRepository;
     private final VectorStoreService vectorStoreService;
 
+    private final java.util.Map<Long, SyncProgress> progressMap = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @lombok.Data
+    public static class SyncProgress {
+        private int totalTables;
+        private int processedTables;
+        private String currentTable;
+        private boolean completed;
+        private String error;
+        private String status; // "extracting", "embedding", "done", "error"
+    }
+
+    public SyncProgress getSyncProgress(Long dataSourceId) {
+        return progressMap.getOrDefault(dataSourceId, new SyncProgress());
+    }
+
     /**
-     * 同步指定数据源的 Schema 到向量数据库
+     * 异步同步指定数据源的 Schema 到向量数据库
      */
     public void syncSchema(Long dataSourceId) {
+        SyncProgress progress = new SyncProgress();
+        progress.setStatus("extracting");
+        progressMap.put(dataSourceId, progress);
+
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                doSyncSchema(dataSourceId, progress);
+            } catch (Exception e) {
+                log.error("同步数据源任务异常", e);
+                progress.setCompleted(true);
+                progress.setStatus("error");
+                progress.setError(e.getMessage());
+            }
+        });
+    }
+
+    private void doSyncSchema(Long dataSourceId, SyncProgress progress) {
         DataSource ds = dataSourceRepository.findById(dataSourceId)
                 .orElseThrow(() -> new RuntimeException("数据源不存在: " + dataSourceId));
 
@@ -37,97 +70,158 @@ public class SchemaService {
         List<String> contentList = new ArrayList<>();
         List<Map<String, Object>> metaList = new ArrayList<>();
 
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
-            DatabaseMetaData metaData = conn.getMetaData();
+        try {
+            try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
+                DatabaseMetaData metaData = conn.getMetaData();
 
-            // 获取所有表
-            // MySQL: catalog=dbName, schema=null
-            // PostgreSQL: catalog=dbName, schemaPattern=null (获取所有 schema)
-            try (ResultSet tables = metaData.getTables(ds.getDbName(), null, "%", new String[] { "TABLE" })) {
-                while (tables.next()) {
-                    String tableName = tables.getString("TABLE_NAME");
-                    String tableSchema = tables.getString("TABLE_SCHEM"); // MySQL 为 null, PG 为 public/schema
-                    String tableComment = tables.getString("REMARKS");
+                // 获取所有表
+                try (ResultSet tables = metaData.getTables(ds.getDbName(), null, "%", new String[] { "TABLE" })) {
+                    // count total tables roughly (not exactly possible with fast next() but we can
+                    // collect them)
+                    // actually we will just extract schema text here
+                    while (tables.next()) {
+                        String tableName = tables.getString("TABLE_NAME");
+                        String tableSchema = tables.getString("TABLE_SCHEM");
+                        String tableComment = tables.getString("REMARKS");
 
-                    // 构建全限定表名 (Schema.Table)
-                    String fullTableName = tableName;
-                    if (tableSchema != null && !tableSchema.isBlank()) {
-                        fullTableName = tableSchema + "." + tableName; // PG: public.users
-                    } else if ("mysql".equalsIgnoreCase(ds.getDbType())) {
-                        fullTableName = ds.getDbName() + "." + tableName; // MySQL: db_name.users
-                        // 修正：后续 getColumns 等需要用正确参数
-                        tableSchema = null; // MySQL schema 依然为 null
-                    }
+                        String fullTableName = tableName;
+                        if (tableSchema != null && !tableSchema.isBlank()) {
+                            fullTableName = tableSchema + "." + tableName;
+                        } else if ("mysql".equalsIgnoreCase(ds.getDbType())) {
+                            fullTableName = ds.getDbName() + "." + tableName;
+                            tableSchema = null;
+                        }
 
-                    // 构建表的 Schema 描述文档
-                    StringBuilder schemaText = new StringBuilder();
-                    schemaText.append("表名: ").append(fullTableName).append("\n");
-                    if (tableComment != null && !tableComment.isEmpty()) {
-                        schemaText.append("表说明: ").append(tableComment).append("\n");
-                    }
-                    schemaText.append("字段列表:\n");
+                        progress.setCurrentTable(fullTableName); // 更新当前正在提取的表名
 
-                    // 获取字段信息
-                    try (ResultSet columns = metaData.getColumns(ds.getDbName(), tableSchema, tableName, "%")) {
-                        while (columns.next()) {
-                            String colName = columns.getString("COLUMN_NAME");
-                            String colType = columns.getString("TYPE_NAME");
-                            String colComment = columns.getString("REMARKS");
-                            String nullable = "YES".equals(columns.getString("IS_NULLABLE")) ? "可空" : "非空";
+                        StringBuilder schemaText = new StringBuilder();
+                        schemaText.append("表名: ").append(fullTableName).append("\n");
+                        if (tableComment != null && !tableComment.isEmpty()) {
+                            schemaText.append("表说明: ").append(tableComment).append("\n");
+                        }
+                        schemaText.append("字段列表:\n");
 
-                            schemaText.append("  - ").append(colName)
-                                    .append(" (").append(colType).append(", ").append(nullable).append(")");
-                            if (colComment != null && !colComment.isEmpty()) {
-                                schemaText.append(": ").append(colComment);
+                        try (ResultSet columns = metaData.getColumns(ds.getDbName(), tableSchema, tableName, "%")) {
+                            while (columns.next()) {
+                                String colName = columns.getString("COLUMN_NAME");
+                                String colType = columns.getString("TYPE_NAME");
+                                String colComment = columns.getString("REMARKS");
+                                String nullable = "YES".equals(columns.getString("IS_NULLABLE")) ? "可空" : "非空";
+
+                                schemaText.append("  - ").append(colName)
+                                        .append(" (").append(colType).append(", ").append(nullable).append(")");
+                                if (colComment != null && !colComment.isEmpty()) {
+                                    schemaText.append(": ").append(colComment);
+                                }
+                                schemaText.append("\n");
                             }
-                            schemaText.append("\n");
                         }
-                    }
 
-                    // 获取主键信息
-                    List<String> primaryKeys = new ArrayList<>();
-                    try (ResultSet pks = metaData.getPrimaryKeys(ds.getDbName(), tableSchema, tableName)) {
-                        while (pks.next()) {
-                            primaryKeys.add(pks.getString("COLUMN_NAME"));
+                        List<String> primaryKeys = new ArrayList<>();
+                        try (ResultSet pks = metaData.getPrimaryKeys(ds.getDbName(), tableSchema, tableName)) {
+                            while (pks.next()) {
+                                primaryKeys.add(pks.getString("COLUMN_NAME"));
+                            }
                         }
-                    }
-                    if (!primaryKeys.isEmpty()) {
-                        schemaText.append("主键: ").append(String.join(", ", primaryKeys)).append("\n");
-                    }
+                        if (!primaryKeys.isEmpty()) {
+                            schemaText.append("主键: ").append(String.join(", ", primaryKeys)).append("\n");
+                        }
 
-                    metaList.add(Map.of("tableName", fullTableName));
+                        // 新增：获取前 5 条数据示例
+                        schemaText.append("数据示例 (前5条):\n");
+                        try (java.sql.Statement stmt = conn.createStatement()) {
+                            stmt.setMaxRows(5);
+                            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + fullTableName)) {
+                                java.sql.ResultSetMetaData rsmd = rs.getMetaData();
+                                int columnCount = rsmd.getColumnCount();
 
-                    if (contentList.isEmpty()) {
-                        log.info("提取到的第一个表 Schema 示例:\n{}", schemaText);
+                                // 追加表头
+                                List<String> headers = new ArrayList<>();
+                                for (int i = 1; i <= columnCount; i++) {
+                                    headers.add(rsmd.getColumnName(i));
+                                }
+                                schemaText.append("| ").append(String.join(" | ", headers)).append(" |\n");
+
+                                // 追加 Markdown 分隔线
+                                List<String> separators = new ArrayList<>();
+                                for (int i = 1; i <= columnCount; i++) {
+                                    separators.add("---");
+                                }
+                                schemaText.append("| ").append(String.join(" | ", separators)).append(" |\n");
+
+                                // 追加数据行
+                                int rowCount = 0;
+                                while (rs.next()) {
+                                    rowCount++;
+                                    List<String> rowValues = new ArrayList<>();
+                                    for (int i = 1; i <= columnCount; i++) {
+                                        Object val = rs.getObject(i);
+                                        String valStr = (val == null) ? "NULL" : val.toString();
+                                        // 截断太长的数据
+                                        if (valStr.length() > 50) {
+                                            valStr = valStr.substring(0, 47) + "...";
+                                        }
+                                        // 替换掉换行符，防止破坏格式，转义管道符
+                                        valStr = valStr.replace("\n", " ").replace("\r", "").replace("|", "\\|");
+                                        rowValues.add(valStr);
+                                    }
+                                    schemaText.append("| ").append(String.join(" | ", rowValues)).append(" |\n");
+                                }
+                                if (rowCount == 0) {
+                                    schemaText.append("(空表)\n");
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.warn("无法获取表 [{}] 的示例数据: {}", fullTableName, e.getMessage());
+                            schemaText.append("(无权限或无法获取示例数据)\n");
+                        }
+                        schemaText.append("\n");
+
+                        metaList.add(Map.of("tableName", fullTableName));
+                        contentList.add(schemaText.toString());
+
+                        progress.setTotalTables(contentList.size()); // 提取阶段仅仅增加总数
                     }
-                    contentList.add(schemaText.toString());
-
-                    log.debug("提取表 [{}] 的 Schema 完成", fullTableName);
                 }
-            }
+            } // 关闭目标数据库连接
 
             if (contentList.isEmpty()) {
-                log.warn("数据源 [{}] 未提取到任何表结构，请检查数据库权限或连接配置。", ds.getName());
-            } else {
-                log.info("共提取到 {} 张表，准备存入向量库...", contentList.size());
+                log.warn("数据源 [{}] 未提取到任何表结构", ds.getName());
+                progress.setCompleted(true);
+                progress.setStatus("done");
+                return;
             }
 
-            // 先删除该数据源的旧 Schema 向量数据
+            progress.setStatus("embedding");
+            progress.setProcessedTables(0);
+
+            // 先删除旧向量
             vectorStoreService.deleteByDataSourceAndType(dataSourceId, "schema");
 
-            // 批量写入向量（调用 embedding-3）
-            if (!contentList.isEmpty()) {
-                vectorStoreService.addDocuments(contentList, dataSourceId, "schema", metaList);
-                log.info("数据源 [{}] Schema 同步完成，共 {} 张表", ds.getName(), contentList.size());
+            // 分批写入，更新进度
+            int batchSize = 10;
+            for (int i = 0; i < contentList.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, contentList.size());
+                List<String> subContent = contentList.subList(i, end);
+                List<Map<String, Object>> subMeta = metaList.subList(i, end);
+
+                progress.setCurrentTable("向量化批次 " + (i / batchSize + 1));
+                vectorStoreService.addDocuments(subContent, dataSourceId, "schema", subMeta);
+
+                progress.setProcessedTables(end);
             }
 
-            // 更新同步时间
-            ds.setSchemaSyncedAt(LocalDateTime.now());
-            dataSourceRepository.save(ds);
+            DataSource updatedDs = dataSourceRepository.findById(dataSourceId).orElse(ds);
+            updatedDs.setSchemaSyncedAt(LocalDateTime.now());
+            dataSourceRepository.save(updatedDs);
+
+            progress.setCompleted(true);
+            progress.setStatus("done");
+            log.info("数据源 [{}] 同步彻底完成", ds.getName());
 
         } catch (Exception e) {
-            log.error("同步数据源 [{}] Schema 失败: {}", ds.getName(), e.getMessage(), e);
-            throw new RuntimeException("Schema 同步失败: " + e.getMessage(), e);
+            log.error("获取或者写入 schema 失败", e);
+            throw new RuntimeException("同步失败: " + e.getMessage(), e);
         }
     }
 
