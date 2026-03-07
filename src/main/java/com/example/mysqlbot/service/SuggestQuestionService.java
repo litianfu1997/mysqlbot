@@ -1,5 +1,6 @@
 package com.example.mysqlbot.service;
 
+import com.example.mysqlbot.model.LlmConfig;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,13 +34,30 @@ public class SuggestQuestionService {
      * @return 推荐问题列表
      */
     public List<String> suggest(String question, String sql) {
+        return suggest(question, sql, null);
+    }
+
+    /**
+     * 生成推荐问题（支持指定LLM配置）
+     *
+     * @param question  用户问题
+     * @param sql       生成的 SQL
+     * @param llmConfig LLM配置（可选）
+     * @return 推荐问题列表
+     */
+    public List<String> suggest(String question, String sql, LlmConfig llmConfig) {
         String promptTemplate = loadPromptTemplate();
         String prompt = promptTemplate
                 .replace("{question}", question)
                 .replace("{sql}", sql != null ? sql : "（无 SQL）");
 
-        // 调用智谱 LLM（zai-sdk）
-        String llmResponse = zhipuLlmService.chat(prompt, 0.5);
+        // 调用 LLM（支持动态配置）
+        String llmResponse;
+        if (llmConfig != null) {
+            llmResponse = zhipuLlmService.chatWithConfig(null, prompt, 0.5, llmConfig);
+        } else {
+            llmResponse = zhipuLlmService.chat(prompt, 0.5);
+        }
         log.debug("LLM 推荐问题响应:\n{}", llmResponse);
 
         return parseLlmResponse(llmResponse);

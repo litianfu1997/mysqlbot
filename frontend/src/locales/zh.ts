@@ -24,9 +24,12 @@ export default {
         deleteSessionConfirm: '您确定要删除此会话吗？',
         switchDataSource: '切换数据源',
         manageDataSources: '管理数据源...',
+        switchLlmConfig: '切换LLM配置',
+        manageLlmConfigs: '管理LLM配置...',
         noDb: '无数据源',
         startChat: '开始聊天',
         selectDb: '选择一个数据库开始聊天:',
+        selectLlmConfig: '选择LLM配置:',
         welcomeTitle: 'MySqlBot 智能助手',
         welcomeText: '我可以分析您的数据、生成 SQL 代码、创建图表并回答问题。',
         inputPlaceholder: '请输入您想了解的数据问题...',
@@ -51,6 +54,9 @@ export default {
             system: '系统设置'
         },
         llm: {
+            add: '添加配置',
+            edit: '编辑配置',
+            name: '配置名称',
             model: '模型名称',
             apiKey: 'API Key',
             baseUrl: 'Base URL',
@@ -58,7 +64,12 @@ export default {
             maxTokens: '最大 Token 数',
             testConnection: '测试连接',
             testSuccess: '连接成功',
-            testFailed: '连接失败'
+            testFailed: '连接失败',
+            setDefault: '设为默认',
+            default: '默认',
+            status: '状态',
+            enabled: '已启用',
+            disabled: '已禁用'
         },
         database: {
             add: '添加数据库',

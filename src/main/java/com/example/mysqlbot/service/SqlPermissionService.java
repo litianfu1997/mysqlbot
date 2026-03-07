@@ -1,5 +1,6 @@
 package com.example.mysqlbot.service;
 
+import com.example.mysqlbot.model.LlmConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -34,6 +35,19 @@ public class SqlPermissionService {
      * @return 修改后的 SQL
      */
     public String applyPermission(String originalSql, String engine, String filterRule) {
+        return applyPermission(originalSql, engine, filterRule, null);
+    }
+
+    /**
+     * 应用权限规则（支持指定LLM配置）
+     *
+     * @param originalSql 原始生成的 SQL
+     * @param engine      数据库类型 (MySQL, PostgreSQL)
+     * @param filterRule  权限过滤规则 (例如: "dept_id = 1001")
+     * @param llmConfig   LLM配置（可选）
+     * @return 修改后的 SQL
+     */
+    public String applyPermission(String originalSql, String engine, String filterRule, LlmConfig llmConfig) {
         if (filterRule == null || filterRule.trim().isEmpty()) {
             return originalSql;
         }
@@ -46,8 +60,13 @@ public class SqlPermissionService {
                 .replace("{engine}", engine)
                 .replace("{filter}", filterRule);
 
-        // 调用智谱 LLM（zai-sdk）重写 SQL
-        String llmResponse = zhipuLlmService.chat(prompt, 0.1);
+        // 调用 LLM（支持动态配置）
+        String llmResponse;
+        if (llmConfig != null) {
+            llmResponse = zhipuLlmService.chatWithConfig(null, prompt, 0.1, llmConfig);
+        } else {
+            llmResponse = zhipuLlmService.chat(prompt, 0.1);
+        }
         log.debug("权限重写后的 SQL 响应:\n{}", llmResponse);
 
         String rewrittenSql = extractSql(llmResponse);

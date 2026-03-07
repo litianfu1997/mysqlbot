@@ -6,13 +6,16 @@ import ai.z.openapi.service.model.ChatCompletionResponse;
 import ai.z.openapi.service.model.ChatMessage;
 import ai.z.openapi.service.model.ChatMessageRole;
 import com.example.mysqlbot.config.AppConfig;
+import com.example.mysqlbot.model.LlmConfig;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 智谱 LLM 对话服务（zai-sdk）
@@ -93,6 +96,42 @@ public class ZhipuLlmService {
         }
     }
 
+    /**
+     * 使用指定的 LLM 配置发送单轮 Chat 请求
+     * 用于多LLM配置场景，允许每个会话使用不同的LLM
+     */
+    public String chatWithConfig(String systemPrompt, String userMessage, Double temperature, LlmConfig config) {
+        if (config == null) {
+            return chatWithSystem(systemPrompt, userMessage, temperature);
+        }
+
+        String baseUrl = config.getBaseUrl();
+        String apiKey = config.getApiKey();
+        Map<String, String> modelMap = config.getModelMap();
+        String defaultModel = config.getDefaultModel();
+        double temp = (temperature != null) ? temperature : config.getTemperature().doubleValue();
+
+        // 映射真实模型名
+        String modelName = defaultModel;
+        if (modelMap != null && modelMap.containsKey(defaultModel)) {
+            modelName = modelMap.get(defaultModel);
+        }
+
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new RuntimeException("LLM配置 [" + config.getName() + "] API Key 未配置");
+        }
+
+        // 判断是否为智谱
+        boolean isZhipu = (baseUrl != null && baseUrl.contains("bigmodel.cn"))
+                || (modelName != null && modelName.toLowerCase().contains("glm"));
+
+        if (isZhipu) {
+            return callZhipuSdkDynamic(apiKey, systemPrompt, userMessage, temp, modelName);
+        } else {
+            return callOpenAiGenericDynamic(baseUrl, apiKey, systemPrompt, userMessage, temp, modelName);
+        }
+    }
+
     // ===== 内部私有方法 =====
 
     private String callZhipuSdk(String systemPrompt, String userMessage, double temperature, String modelName) {
@@ -158,6 +197,73 @@ public class ZhipuLlmService {
         messages.add(java.util.Map.of("role", "user", "content", userMessage));
 
         log.debug("OpenAI(Generic) chat: url={}, model={}", baseUrl, modelName);
+        return util.chat(messages, temperature);
+    }
+
+    // ===== 动态配置调用方法 =====
+
+    private String callZhipuSdkDynamic(String apiKey, String systemPrompt, String userMessage, double temperature, String modelName) {
+        // 为动态配置创建新的客户端
+        ZhipuAiClient dynamicClient = ZhipuAiClient.builder()
+                .ofZHIPU()
+                .apiKey(apiKey)
+                .build();
+
+        List<ChatMessage> messages = new ArrayList<>();
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            messages.add(ChatMessage.builder()
+                    .role(ChatMessageRole.SYSTEM.value())
+                    .content(systemPrompt)
+                    .build());
+        }
+        messages.add(ChatMessage.builder()
+                .role(ChatMessageRole.USER.value())
+                .content(userMessage)
+                .build());
+
+        try {
+            ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+                    .model(modelName)
+                    .messages(messages)
+                    .temperature((float) temperature)
+                    .build();
+
+            log.debug("Zhipu(SDK) dynamic chat: model={}, temperature={}", modelName, temperature);
+            ChatCompletionResponse response = dynamicClient.chat().createChatCompletion(params);
+
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                String errorMsg = (response != null && response.getMsg() != null) ? response.getMsg() : "未知错误";
+                throw new RuntimeException("智谱 API 调用失败: " + errorMsg);
+            }
+
+            var choices = response.getData().getChoices();
+            if (choices == null || choices.isEmpty()) {
+                throw new RuntimeException("智谱 API 返回内容为空");
+            }
+
+            Object contentObj = choices.get(0).getMessage().getContent();
+            return contentObj != null ? contentObj.toString() : null;
+        } catch (Exception e) {
+            log.error("Zhipu SDK dynamic 调用异常", e);
+            throw new RuntimeException("智谱 LLM 调用失败: " + e.getMessage(), e);
+        }
+    }
+
+    private String callOpenAiGenericDynamic(String baseUrl, String apiKey, String systemPrompt, String userMessage, double temperature, String modelName) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            baseUrl = "https://api.openai.com/v1";
+        }
+
+        com.example.mysqlbot.util.OpenAiLlmUtil util = new com.example.mysqlbot.util.OpenAiLlmUtil(
+                baseUrl, apiKey, modelName);
+
+        List<java.util.Map<String, String>> messages = new ArrayList<>();
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            messages.add(java.util.Map.of("role", "system", "content", systemPrompt));
+        }
+        messages.add(java.util.Map.of("role", "user", "content", userMessage));
+
+        log.debug("OpenAI(Generic) dynamic chat: url={}, model={}", baseUrl, modelName);
         return util.chat(messages, temperature);
     }
 

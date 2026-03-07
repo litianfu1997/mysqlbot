@@ -24,9 +24,12 @@ export default {
         deleteSessionConfirm: 'Are you sure you want to delete this chat?',
         switchDataSource: 'Switch Data Source',
         manageDataSources: 'Manage Data Sources...',
+        switchLlmConfig: 'Switch LLM Config',
+        manageLlmConfigs: 'Manage LLM Configs...',
         noDb: 'No DB',
         startChat: 'Start Chat',
         selectDb: 'Choose a database to start chatting:',
+        selectLlmConfig: 'Select LLM Config:',
         welcomeTitle: 'MySqlBot Intelligence',
         welcomeText: 'I can analyze your data, generate SQL snippets, create charts, and answer questions.',
         inputPlaceholder: 'Ask a question about your data...',
@@ -51,6 +54,9 @@ export default {
             system: 'System'
         },
         llm: {
+            add: 'Add Config',
+            edit: 'Edit Config',
+            name: 'Config Name',
             model: 'Model',
             apiKey: 'API Key',
             baseUrl: 'Base URL',
@@ -58,7 +64,12 @@ export default {
             maxTokens: 'Max Tokens',
             testConnection: 'Test Connection',
             testSuccess: 'Connection successful',
-            testFailed: 'Connection failed'
+            testFailed: 'Connection failed',
+            setDefault: 'Set Default',
+            default: 'Default',
+            status: 'Status',
+            enabled: 'Enabled',
+            disabled: 'Disabled'
         },
         database: {
             add: 'Add Database',

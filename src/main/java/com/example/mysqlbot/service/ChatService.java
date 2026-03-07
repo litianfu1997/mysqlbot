@@ -2,8 +2,10 @@ package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.model.ChatMessage;
 import com.example.mysqlbot.model.ChatSession;
+import com.example.mysqlbot.model.LlmConfig;
 import com.example.mysqlbot.repository.ChatMessageRepository;
 import com.example.mysqlbot.repository.ChatSessionRepository;
+import com.example.mysqlbot.repository.LlmConfigRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -29,6 +32,7 @@ public class ChatService {
     private final DataAnalysisService dataAnalysisService;
     private final SuggestQuestionService suggestQuestionService;
     private final SqlPermissionService sqlPermissionService;
+    private final LlmConfigRepository llmConfigRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -36,9 +40,25 @@ public class ChatService {
      */
     @Transactional
     public ChatSession createSession(Long dataSourceId, String title) {
+        return createSession(dataSourceId, title, null);
+    }
+
+    /**
+     * 创建新会话（支持指定LLM配置）
+     */
+    @Transactional
+    public ChatSession createSession(Long dataSourceId, String title, Long llmConfigId) {
+        // 如果没有指定LLM配置，使用默认配置
+        Long effectiveLlmConfigId = llmConfigId;
+        if (effectiveLlmConfigId == null) {
+            Optional<LlmConfig> defaultConfig = llmConfigRepository.findByIsDefaultTrue();
+            effectiveLlmConfigId = defaultConfig.map(LlmConfig::getId).orElse(null);
+        }
+
         ChatSession session = ChatSession.builder()
                 .title(title != null ? title : "新对话")
                 .dataSourceId(dataSourceId)
+                .llmConfigId(effectiveLlmConfigId)
                 .build();
         return sessionRepository.save(session);
     }
@@ -52,7 +72,17 @@ public class ChatService {
         ChatSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("会话不存在: " + sessionId));
 
-        // 2. 保存用户消息
+        // 2. 获取会话关联的LLM配置
+        LlmConfig llmConfig = null;
+        if (session.getLlmConfigId() != null) {
+            llmConfig = llmConfigRepository.findById(session.getLlmConfigId()).orElse(null);
+        }
+        // 如果没有配置，尝试使用默认配置
+        if (llmConfig == null) {
+            llmConfig = llmConfigRepository.findByIsDefaultTrue().orElse(null);
+        }
+
+        // 3. 保存用户消息
         ChatMessage userMsg = ChatMessage.builder()
                 .sessionId(sessionId)
                 .role("user")
@@ -60,10 +90,10 @@ public class ChatService {
                 .build();
         messageRepository.save(userMsg);
 
-        // 3. 构建对话历史（最近 6 条）
+        // 4. 构建对话历史（最近 6 条）
         String chatHistory = buildChatHistory(sessionId);
 
-        // 4. 生成 SQL (支持重试)
+        // 5. 生成 SQL (支持重试)
         int maxRetries = 3; // 默认重试 3 次
         String currentHistory = chatHistory;
         SqlGenerateService.SqlGenerateResult generateResult = null;
@@ -78,27 +108,27 @@ public class ChatService {
                         + "\n请根据错误信息修正 SQL。";
             }
 
-            generateResult = sqlGenerateService.generate(userQuestion, session.getDataSourceId(), currentHistory);
+            generateResult = sqlGenerateService.generate(userQuestion, session.getDataSourceId(), currentHistory, llmConfig);
 
             if (!generateResult.isSuccess() || generateResult.getSql() == null) {
                 // 无法生成 SQL，直接跳出
                 break;
             }
 
-            // 5. 应用行级权限控制
+            // 6. 应用行级权限控制
             String permissionRule = resolvePermissionRule();
             String finalSql = generateResult.getSql();
 
             if (permissionRule != null && !permissionRule.isBlank()) {
                 try {
-                    finalSql = sqlPermissionService.applyPermission(finalSql, "MySQL", permissionRule);
+                    finalSql = sqlPermissionService.applyPermission(finalSql, "MySQL", permissionRule, llmConfig);
                     log.info("应用权限后的 SQL: {}", finalSql);
                 } catch (Exception e) {
                     log.error("权限应用失败，回退到原始 SQL", e);
                 }
             }
 
-            // 6. 执行 SQL
+            // 7. 执行 SQL
             executeResult = sqlExecuteService.execute(finalSql, session.getDataSourceId());
 
             if (executeResult.isSuccess()) {
@@ -123,10 +153,6 @@ public class ChatService {
             // ... (Success handling code mostly same as before) ...
             String resultJson = null;
             String content = generateResult.getExplanation();
-            // String analysisResultText = null;
-            // String chartType = null;
-            // String xAxis = null;
-            // String yAxis = null;
             String suggestQuestionsJson = null;
 
             try {
@@ -135,9 +161,9 @@ public class ChatService {
                 resultJson = "{}";
             }
 
-            // 7. 生成推荐问题 (Phase 2)
+            // 8. 生成推荐问题 (Phase 2)
             try {
-                List<String> questions = suggestQuestionService.suggest(userQuestion, generateResult.getSql());
+                List<String> questions = suggestQuestionService.suggest(userQuestion, generateResult.getSql(), llmConfig);
                 suggestQuestionsJson = objectMapper.writeValueAsString(questions);
             } catch (Exception e) {
                 log.error("生成推荐问题失败", e);
@@ -149,10 +175,6 @@ public class ChatService {
                     .content(content)
                     .sqlQuery(generateResult.getSql())
                     .sqlResult(resultJson)
-                    // .analysis(analysisResultText) // DEFERRED
-                    // .chartType(chartType) // DEFERRED
-                    // .xAxis(xAxis) // DEFERRED
-                    // .yAxis(yAxis) // DEFERRED
                     .suggestQuestions(suggestQuestionsJson)
                     .build();
 
@@ -170,10 +192,10 @@ public class ChatService {
                     .build();
         }
 
-        // 7. 保存 assistant 消息
+        // 9. 保存 assistant 消息
         messageRepository.save(assistantMsg);
 
-        // 7. 更新会话标题（首次对话时用问题作为标题）
+        // 10. 更新会话标题（首次对话时用问题作为标题）
         if ("新对话".equals(session.getTitle()) && userQuestion.length() > 0) {
             session.setTitle(userQuestion.length() > 30 ? userQuestion.substring(0, 30) + "..." : userQuestion);
             sessionRepository.save(session);
@@ -192,6 +214,16 @@ public class ChatService {
 
         if (message.getSqlResult() == null) {
             throw new RuntimeException("该消息没有数据可分析");
+        }
+
+        // 获取会话的LLM配置
+        ChatSession session = sessionRepository.findById(message.getSessionId()).orElse(null);
+        LlmConfig llmConfig = null;
+        if (session != null && session.getLlmConfigId() != null) {
+            llmConfig = llmConfigRepository.findById(session.getLlmConfigId()).orElse(null);
+        }
+        if (llmConfig == null) {
+            llmConfig = llmConfigRepository.findByIsDefaultTrue().orElse(null);
         }
 
         // 尝试找到对应的用户提问
@@ -230,7 +262,8 @@ public class ChatService {
             DataAnalysisService.AnalysisResult analysis = dataAnalysisService.analyze(
                     userQuestion,
                     message.getSqlQuery(),
-                    rows);
+                    rows,
+                    llmConfig);
 
             message.setAnalysis(analysis.getInsight());
             message.setChartType(analysis.getChartType());

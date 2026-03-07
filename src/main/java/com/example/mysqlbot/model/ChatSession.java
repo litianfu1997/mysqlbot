@@ -26,6 +26,9 @@ public class ChatSession {
     @Column(name = "data_source_id")
     private Long dataSourceId;
 
+    @Column(name = "llm_config_id")
+    private Long llmConfigId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

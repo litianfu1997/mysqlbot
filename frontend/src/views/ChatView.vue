@@ -44,32 +44,58 @@
              <div class="flex items-center">
                  <div class="font-medium text-gray-700 text-lg">{{ currentSessionTitle }}</div>
              </div>
-             <!-- 数据源切换下拉 -->
-             <el-dropdown @command="switchDataSource" trigger="click">
-               <div class="datasource-badge">
-                 <span class="ds-dot"></span>
-                 <el-icon class="mr-1"><DataBoard /></el-icon>
-                 <span>{{ currentDataSourceName }}</span>
-                 <el-icon class="ml-1 arrow-icon"><ArrowDown /></el-icon>
-               </div>
-               <template #dropdown>
-                 <el-dropdown-menu>
-                   <div class="px-3 pt-2 pb-1 text-xs text-gray-400 font-medium">{{ t('chat.switchDataSource') }}</div>
-                   <el-dropdown-item
-                     v-for="ds in dataSources"
-                     :key="ds.id"
-                     :command="ds.id"
-                   >
-                     <el-icon class="mr-1"><DataLine /></el-icon>
-                     <span style="flex:1">{{ ds.name }}</span>
-                     <el-icon v-if="ds.id === currentSessionDataSourceId" style="margin-left:8px;color:#3b82f6"><Check /></el-icon>
-                   </el-dropdown-item>
-                   <el-dropdown-item divided command="__manage__">
-                     <el-icon class="mr-1"><Setting /></el-icon> {{ t('chat.manageDataSources') }}
-                   </el-dropdown-item>
-                 </el-dropdown-menu>
-               </template>
-             </el-dropdown>
+             <div class="flex items-center gap-3">
+               <!-- LLM配置切换下拉 -->
+               <el-dropdown @command="switchLlmConfig" trigger="click">
+                 <div class="llm-badge">
+                   <el-icon class="mr-1"><DataAnalysis /></el-icon>
+                   <span>{{ currentLlmConfigName }}</span>
+                   <el-icon class="ml-1 arrow-icon"><ArrowDown /></el-icon>
+                 </div>
+                 <template #dropdown>
+                   <el-dropdown-menu>
+                     <div class="px-3 pt-2 pb-1 text-xs text-gray-400 font-medium">{{ t('chat.switchLlmConfig') }}</div>
+                     <el-dropdown-item
+                       v-for="config in llmConfigs"
+                       :key="config.id"
+                       :command="config.id"
+                     >
+                       <span style="flex:1">{{ config.name }}</span>
+                       <el-icon v-if="config.id === currentSessionLlmConfigId" style="margin-left:8px;color:#3b82f6"><Check /></el-icon>
+                     </el-dropdown-item>
+                     <el-dropdown-item divided command="__manage__">
+                       <el-icon class="mr-1"><Setting /></el-icon> {{ t('chat.manageLlmConfigs') }}
+                     </el-dropdown-item>
+                   </el-dropdown-menu>
+                 </template>
+               </el-dropdown>
+               <!-- 数据源切换下拉 -->
+               <el-dropdown @command="switchDataSource" trigger="click">
+                 <div class="datasource-badge">
+                   <span class="ds-dot"></span>
+                   <el-icon class="mr-1"><DataBoard /></el-icon>
+                   <span>{{ currentDataSourceName }}</span>
+                   <el-icon class="ml-1 arrow-icon"><ArrowDown /></el-icon>
+                 </div>
+                 <template #dropdown>
+                   <el-dropdown-menu>
+                     <div class="px-3 pt-2 pb-1 text-xs text-gray-400 font-medium">{{ t('chat.switchDataSource') }}</div>
+                     <el-dropdown-item
+                       v-for="ds in dataSources"
+                       :key="ds.id"
+                       :command="ds.id"
+                     >
+                       <el-icon class="mr-1"><DataLine /></el-icon>
+                       <span style="flex:1">{{ ds.name }}</span>
+                       <el-icon v-if="ds.id === currentSessionDataSourceId" style="margin-left:8px;color:#3b82f6"><Check /></el-icon>
+                     </el-dropdown-item>
+                     <el-dropdown-item divided command="__manage__">
+                       <el-icon class="mr-1"><Setting /></el-icon> {{ t('chat.manageDataSources') }}
+                     </el-dropdown-item>
+                   </el-dropdown-menu>
+                 </template>
+               </el-dropdown>
+             </div>
           </el-header>
           
           <el-main class="p-0 relative flex flex-col">
@@ -144,9 +170,19 @@
     <el-dialog v-model="dialogVisible" :title="t('chat.selectDb')" width="30%" align-center>
         <div class="p-4">
             <div class="mb-2 text-gray-600">{{ t('chat.selectDb') }}</div>
-            <el-select v-model="selectedDataSourceId" placeholder="Select a database" class="w-full">
+            <el-select v-model="selectedDataSourceId" placeholder="Select a database" class="w-full mb-4">
                 <el-option
                     v-for="item in dataSources"
+                    :key="item.id"
+                    :label="item.name"
+                    :value="item.id"
+                />
+            </el-select>
+
+            <div class="mb-2 text-gray-600">{{ t('chat.selectLlmConfig') }}</div>
+            <el-select v-model="selectedLlmConfigId" placeholder="Select LLM Config" class="w-full">
+                <el-option
+                    v-for="item in llmConfigs"
                     :key="item.id"
                     :label="item.name"
                     :value="item.id"
@@ -171,7 +207,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { useChatStore } from '@/store/chat'
 import ChatMessage from '@/components/ChatMessage.vue'
 import SettingsDialog from '@/components/SettingsDialog.vue'
-import { dataSourceApi, type DataSource } from '@/api'
+import { dataSourceApi, llmConfigApi, type DataSource, type LlmConfig } from '@/api'
 import { Plus, ChatDotRound, Monitor, Loading, Position, DataAnalysis, Setting, DataBoard, DataLine, ArrowDown, Check, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -187,6 +223,10 @@ const dialogVisible = ref(false)
 const dataSources = ref<DataSource[]>([])
 const selectedDataSourceId = ref<number | undefined>(undefined)
 
+// LLM Config Selection
+const llmConfigs = ref<LlmConfig[]>([])
+const selectedLlmConfigId = ref<number | undefined>(undefined)
+
 onMounted(async () => {
    await chatStore.fetchSessions()
    try {
@@ -199,7 +239,22 @@ onMounted(async () => {
    } catch {
      console.error("Failed to load datasources")
    }
-   
+
+   // Fetch LLM configs
+   try {
+     const llmRes = await llmConfigApi.getEnabled()
+     llmConfigs.value = llmRes.data
+     // Set default selection
+     const defaultConfig = llmConfigs.value.find(c => c.isDefault)
+     if (defaultConfig) {
+         selectedLlmConfigId.value = defaultConfig.id
+     } else if (llmConfigs.value.length > 0) {
+         selectedLlmConfigId.value = llmConfigs.value[0].id
+     }
+   } catch {
+     console.error("Failed to load LLM configs")
+   }
+
    if (chatStore.sessions.length > 0) {
        chatStore.selectSession(chatStore.sessions[0].id)
    } else {
@@ -223,6 +278,16 @@ const currentDataSourceName = computed(() => {
     return ds ? ds.name : 'No DB'
 })
 
+const currentSessionLlmConfigId = computed(() => {
+    const s = chatStore.sessions.find(s => s.id === chatStore.currentSessionId)
+    return s?.llmConfigId ?? null
+})
+
+const currentLlmConfigName = computed(() => {
+    const config = llmConfigs.value.find(c => c.id === currentSessionLlmConfigId.value)
+    return config ? config.name : 'Default'
+})
+
 async function switchDataSource(command: number | string) {
     if (command === '__manage__') {
         openSettings()
@@ -230,24 +295,35 @@ async function switchDataSource(command: number | string) {
     }
     const dsId = command as number
     if (dsId === currentSessionDataSourceId.value) return
-    
+
     // 找到当前会话
     const session = chatStore.sessions.find(s => s.id === chatStore.currentSessionId)
     if (!session) {
         // 没有活跃会话，直接用该数据源创建新会话
-        await chatStore.createSession(dsId)
+        await chatStore.createSession(dsId, undefined, selectedLlmConfigId.value)
         ElMessage.success('已切换数据源并创建新对话')
         return
     }
-    
+
     // 有活跃会话，询问用户是否新建对话
     try {
-        await chatStore.createSession(dsId, `New Chat - ${dataSources.value.find(d => d.id === dsId)?.name}`)
+        await chatStore.createSession(dsId, `New Chat - ${dataSources.value.find(d => d.id === dsId)?.name}`, selectedLlmConfigId.value)
         const dsName = dataSources.value.find(d => d.id === dsId)?.name
         ElMessage.success(`已切换到数据源：${dsName}`)
     } catch(e) {
         ElMessage.error('切换数据源失败')
     }
+}
+
+async function switchLlmConfig(command: number | string) {
+    if (command === '__manage__') {
+        openSettings()
+        return
+    }
+    const configId = command as number
+    selectedLlmConfigId.value = configId
+    const config = llmConfigs.value.find(c => c.id === configId)
+    ElMessage.success(`已切换LLM配置：${config?.name || 'Default'}`)
 }
 
 function createNewSession() {
@@ -262,7 +338,7 @@ function openSettings() {
 
 async function confirmCreateSession() {
     if (selectedDataSourceId.value) {
-        await chatStore.createSession(selectedDataSourceId.value)
+        await chatStore.createSession(selectedDataSourceId.value, undefined, selectedLlmConfigId.value)
         dialogVisible.value = false
     }
 }
@@ -505,7 +581,7 @@ watch(() => chatStore.messages.length, () => {
 .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
 .z-10 { z-index: 10; }
 
-/* 数据源切换按钟 */
+/* 数据源切换按钮 */
 .datasource-badge {
     display: flex;
     align-items: center;
@@ -539,6 +615,32 @@ watch(() => chatStore.messages.length, () => {
     font-size: 11px;
     color: #9ca3af;
 }
+
+/* LLM配置切换按钮 */
+.llm-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    cursor: pointer;
+    font-size: 13px;
+    color: #92400e;
+    transition: all 0.2s;
+    user-select: none;
+}
+.llm-badge:hover {
+    background: #fde68a;
+    border-color: #f59e0b;
+    color: #78350f;
+}
+.llm-badge:focus-visible {
+    outline: none;
+}
+
+.gap-3 { gap: 0.75rem; }
 
 /* 设置按钮 */
 .settings-btn {

@@ -34,7 +34,7 @@ public class ChatController {
      */
     @PostMapping("/sessions")
     public ChatSession createSession(@RequestBody CreateSessionRequest request) {
-        return chatService.createSession(request.getDataSourceId(), request.getTitle());
+        return chatService.createSession(request.getDataSourceId(), request.getTitle(), request.getLlmConfigId());
     }
 
     /**
@@ -96,6 +96,7 @@ public class ChatController {
     public static class CreateSessionRequest {
         private Long dataSourceId;
         private String title;
+        private Long llmConfigId;
     }
 
     @Data

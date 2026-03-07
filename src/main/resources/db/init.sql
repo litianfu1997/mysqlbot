@@ -22,11 +22,27 @@ CREATE TABLE IF NOT EXISTS data_source (
     UNIQUE KEY uk_name (name)
 ) COMMENT='数据源配置';
 
+-- ===== LLM配置表 =====
+CREATE TABLE IF NOT EXISTS llm_config (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name          VARCHAR(100) NOT NULL UNIQUE COMMENT '配置名称',
+    base_url      VARCHAR(500) NOT NULL COMMENT 'API Base URL',
+    api_key       VARCHAR(500) NOT NULL COMMENT 'API Key',
+    model_map     JSON COMMENT '模型映射 {"别名": "实际模型名"}',
+    default_model VARCHAR(100) COMMENT '默认模型别名',
+    temperature   DECIMAL(3,2) DEFAULT 0.1,
+    is_default    TINYINT DEFAULT 0 COMMENT '是否默认配置',
+    is_enabled    TINYINT DEFAULT 1,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) COMMENT='LLM配置表';
+
 -- ===== 对话会话表 =====
 CREATE TABLE IF NOT EXISTS chat_session (
     id          VARCHAR(36) PRIMARY KEY COMMENT '会话ID (UUID)',
     title       VARCHAR(200) COMMENT '会话标题',
     data_source_id BIGINT COMMENT '关联数据源',
+    llm_config_id BIGINT COMMENT '关联LLM配置',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_created_at (created_at)
@@ -80,3 +96,12 @@ CREATE TABLE IF NOT EXISTS system_config (
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) COMMENT='系统配置 (LLM、SQL等运行时配置)';
+
+-- ===== Migration: Add llm_config_id to chat_session if not exists =====
+-- This is safe to run multiple times
+SET @exist := (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'chat_session' AND COLUMN_NAME = 'llm_config_id');
+SET @sql := IF(@exist = 0, 'ALTER TABLE chat_session ADD COLUMN llm_config_id BIGINT COMMENT ''关联LLM配置''', 'SELECT ''Column llm_config_id already exists'' AS message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

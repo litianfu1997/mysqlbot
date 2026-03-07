@@ -1,5 +1,6 @@
 package com.example.mysqlbot.service;
 
+import com.example.mysqlbot.model.LlmConfig;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
@@ -35,6 +36,19 @@ public class DataAnalysisService {
      * @return 分析结果
      */
     public AnalysisResult analyze(String question, String sql, List<Map<String, Object>> data) {
+        return analyze(question, sql, data, null);
+    }
+
+    /**
+     * 生成数据分析和图表推荐（支持指定LLM配置）
+     *
+     * @param question  用户问题
+     * @param sql       执行的 SQL
+     * @param data      查询结果集（List<Map<String, Object>>）
+     * @param llmConfig LLM配置（可选）
+     * @return 分析结果
+     */
+    public AnalysisResult analyze(String question, String sql, List<Map<String, Object>> data, LlmConfig llmConfig) {
         if (data == null || data.isEmpty()) {
             return AnalysisResult.builder()
                     .insight("查询结果为空，无法进行分析。")
@@ -52,8 +66,13 @@ public class DataAnalysisService {
                 .replace("{sql}", sql)
                 .replace("{data}", dataJson);
 
-        // 调用智谱 LLM（zai-sdk）
-        String llmResponse = zhipuLlmService.chat(prompt, 0.3);
+        // 调用 LLM（支持动态配置）
+        String llmResponse;
+        if (llmConfig != null) {
+            llmResponse = zhipuLlmService.chatWithConfig(null, prompt, 0.3, llmConfig);
+        } else {
+            llmResponse = zhipuLlmService.chat(prompt, 0.3);
+        }
         log.debug("LLM 分析响应:\n{}", llmResponse);
 
         // 解析 JSON 响应

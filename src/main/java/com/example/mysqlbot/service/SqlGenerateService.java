@@ -1,6 +1,7 @@
 package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.config.AppConfig;
+import com.example.mysqlbot.model.LlmConfig;
 import com.example.mysqlbot.model.TermGlossary;
 import com.example.mysqlbot.repository.TermGlossaryRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,13 @@ public class SqlGenerateService {
      * 根据用户问题和数据源生成 SQL
      */
     public SqlGenerateResult generate(String question, Long dataSourceId, String chatHistory) {
+        return generate(question, dataSourceId, chatHistory, null);
+    }
+
+    /**
+     * 根据用户问题和数据源生成 SQL（支持指定LLM配置）
+     */
+    public SqlGenerateResult generate(String question, Long dataSourceId, String chatHistory, LlmConfig llmConfig) {
         boolean ragEnabled = appConfig.getRag().isEnabled();
 
         // 1. RAG 检索相关 Schema（可关闭）
@@ -69,8 +77,14 @@ public class SqlGenerateService {
                 .replace("{chatHistory}", chatHistory != null ? chatHistory : "（无历史对话）")
                 .replace("{question}", question);
 
-        // 4. 调用智谱 LLM（zai-sdk）
-        String llmResponse = zhipuLlmService.chat(prompt, appConfig.getLlm().getTemperature());
+        // 4. 调用 LLM（支持动态配置）
+        String llmResponse;
+        double temperature = llmConfig != null ? llmConfig.getTemperature().doubleValue() : appConfig.getLlm().getTemperature();
+        if (llmConfig != null) {
+            llmResponse = zhipuLlmService.chatWithConfig(null, prompt, temperature, llmConfig);
+        } else {
+            llmResponse = zhipuLlmService.chat(prompt, temperature);
+        }
         log.debug("LLM 响应:\n{}", llmResponse);
 
         // 5. 提取 SQL 和 解释
