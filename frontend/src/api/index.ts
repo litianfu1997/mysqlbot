@@ -86,7 +86,13 @@ export const configApi = {
     updateLlmConfig: (config: any) => api.post('/config/llm', config),
     testLlmConnection: (config: any) => api.post<any>('/config/llm/test', config),
     getSqlConfig: () => api.get<any>('/config/sql'),
-    getAllConfig: () => api.get<any>('/config/all')
+    getAllConfig: () => api.get<any>('/config/all'),
+    
+    getWeComConfig: () => api.get<any>('/config/wecom'),
+    updateWeComConfig: (config: any) => api.post<any>('/config/wecom', config),
+    
+    getFeishuConfig: () => api.get<any>('/config/feishu'),
+    updateFeishuConfig: (config: any) => api.post<any>('/config/feishu', config)
 }
 
 export const dataSourceApi = {

@@ -103,6 +103,55 @@
         </el-table>
       </el-tab-pane>
 
+      <el-tab-pane label="企业微信集成" name="wecom">
+          <el-form label-width="120px" :model="wecomForm" v-loading="loadingWecom">
+              <el-form-item label="企业ID (CorpId)">
+                  <el-input v-model="wecomForm.corpId" placeholder="企业微信CorpId" />
+              </el-form-item>
+              <el-form-item label="应用ID (AgentId)">
+                  <el-input v-model="wecomForm.agentId" placeholder="应用AgentId" />
+              </el-form-item>
+              <el-form-item label="应用密钥 (Secret)">
+                  <el-input v-model="wecomForm.secret" type="password" show-password placeholder="应用Secret" />
+              </el-form-item>
+              <el-form-item label="回调 Token">
+                  <el-input v-model="wecomForm.token" placeholder="接收消息服务器配置的Token" />
+              </el-form-item>
+              <el-form-item label="AES Key">
+                  <el-input v-model="wecomForm.encodingAesKey" type="password" show-password placeholder="EncodingAESKey" />
+              </el-form-item>
+              <el-form-item label="启用企业微信">
+                  <el-switch v-model="wecomForm.enabled" active-value="true" inactive-value="false" />
+              </el-form-item>
+              <el-form-item>
+                  <el-button type="primary" :loading="savingWecom" @click="saveWecomConfig">保存企业微信配置</el-button>
+              </el-form-item>
+          </el-form>
+      </el-tab-pane>
+
+      <el-tab-pane label="飞书集成" name="feishu">
+          <el-form label-width="150px" :model="feishuForm" v-loading="loadingFeishu">
+              <el-form-item label="应用 ID (App ID)">
+                  <el-input v-model="feishuForm.appId" placeholder="飞书 App ID" />
+              </el-form-item>
+              <el-form-item label="应用密钥 (App Secret)">
+                  <el-input v-model="feishuForm.appSecret" type="password" show-password placeholder="飞书 App Secret" />
+              </el-form-item>
+              <el-form-item label="验证 Token">
+                  <el-input v-model="feishuForm.verificationToken" placeholder="Verification Token" />
+              </el-form-item>
+              <el-form-item label="加密密钥 (Encrypt Key)">
+                  <el-input v-model="feishuForm.encryptKey" type="password" show-password placeholder="Encrypt Key" />
+              </el-form-item>
+              <el-form-item label="启用飞书">
+                  <el-switch v-model="feishuForm.enabled" active-value="true" inactive-value="false" />
+              </el-form-item>
+              <el-form-item>
+                  <el-button type="primary" :loading="savingFeishu" @click="saveFeishuConfig">保存飞书配置</el-button>
+              </el-form-item>
+          </el-form>
+      </el-tab-pane>
+
       <el-tab-pane :label="t('settings.tabs.system')" name="system">
           <el-form label-width="120px">
               <el-form-item :label="t('settings.system.language')">
@@ -210,7 +259,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { dataSourceApi, llmConfigApi, type DataSource, type LlmConfig } from '@/api'
+import { dataSourceApi, llmConfigApi, configApi, type DataSource, type LlmConfig } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -261,6 +310,28 @@ const dsForm = ref<DataSource>({
   password: ''
 })
 
+// WeCom and Feishu Configs
+const loadingWecom = ref(false)
+const savingWecom = ref(false)
+const wecomForm = ref({
+  corpId: '',
+  agentId: '',
+  secret: '',
+  token: '',
+  encodingAesKey: '',
+  enabled: 'false'
+})
+
+const loadingFeishu = ref(false)
+const savingFeishu = ref(false)
+const feishuForm = ref({
+  appId: '',
+  appSecret: '',
+  verificationToken: '',
+  encryptKey: '',
+  enabled: 'false'
+})
+
 // Expose open method
 const open = () => {
   visible.value = true
@@ -274,6 +345,8 @@ defineExpose({
 async function fetchConfigs() {
   fetchLlmConfigs()
   fetchDataSources()
+  fetchWeComConfig()
+  fetchFeishuConfig()
 }
 
 async function fetchLlmConfigs() {
@@ -426,12 +499,8 @@ function openDataSourceDialog(row?: DataSource) {
 async function testConnection() {
   testingConnection.value = true
   try {
-      let res;
-      if (editingDataSource.value && dsForm.value.id) {
-          res = await dataSourceApi.testConnection(dsForm.value.id)
-      } else {
-          res = await dataSourceApi.testAdHocConnection(dsForm.value)
-      }
+      // 始终使用表单当前数据测试，确保用户修改后未保存也能测试最新的连接配置
+      const res = await dataSourceApi.testAdHocConnection(dsForm.value)
 
       if (res.data && res.data.success) {
           ElMessage.success(res.data.message || 'Connection successful')
@@ -544,6 +613,64 @@ async function deleteDataSource(id: number) {
     } catch {
         // Cancelled
     }
+}
+
+// WeCom Operations
+async function fetchWeComConfig() {
+  loadingWecom.value = true
+  try {
+    const res = await configApi.getWeComConfig()
+    wecomForm.value = res.data
+  } catch (e) {
+    console.error('Failed to fetch WeCom config', e)
+  } finally {
+    loadingWecom.value = false
+  }
+}
+
+async function saveWecomConfig() {
+  savingWecom.value = true
+  try {
+    const res = await configApi.updateWeComConfig(wecomForm.value)
+    if (res.data && res.data.success) {
+      ElMessage.success(res.data.message)
+    } else {
+      ElMessage.error(res.data?.message || 'Failed to save WeCom config')
+    }
+  } catch (e: any) {
+    ElMessage.error(e.message || 'Failed to save WeCom config')
+  } finally {
+    savingWecom.value = false
+  }
+}
+
+// Feishu Operations
+async function fetchFeishuConfig() {
+  loadingFeishu.value = true
+  try {
+    const res = await configApi.getFeishuConfig()
+    feishuForm.value = res.data
+  } catch (e) {
+    console.error('Failed to fetch Feishu config', e)
+  } finally {
+    loadingFeishu.value = false
+  }
+}
+
+async function saveFeishuConfig() {
+  savingFeishu.value = true
+  try {
+    const res = await configApi.updateFeishuConfig(feishuForm.value)
+    if (res.data && res.data.success) {
+      ElMessage.success(res.data.message)
+    } else {
+      ElMessage.error(res.data?.message || 'Failed to save Feishu config')
+    }
+  } catch (e: any) {
+    ElMessage.error(e.message || 'Failed to save Feishu config')
+  } finally {
+    savingFeishu.value = false
+  }
 }
 </script>
 

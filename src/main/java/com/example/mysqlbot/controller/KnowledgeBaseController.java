@@ -23,7 +23,7 @@ public class KnowledgeBaseController {
     // ===== Term Glossary =====
 
     @GetMapping("/terms")
-    public List<TermGlossary> listTerms(@RequestParam(required = false) Long dataSourceId) {
+    public List<TermGlossary> listTerms(@RequestParam(name = "dataSourceId", required = false) Long dataSourceId) {
         if (dataSourceId != null) {
             return termGlossaryRepository.findByDataSourceId(dataSourceId);
         }
@@ -36,7 +36,7 @@ public class KnowledgeBaseController {
     }
 
     @DeleteMapping("/terms/{id}")
-    public ResponseEntity<Void> deleteTerm(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteTerm(@PathVariable("id") Long id) {
         termGlossaryRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }
@@ -44,7 +44,7 @@ public class KnowledgeBaseController {
     // ===== SQL Examples =====
 
     @GetMapping("/examples")
-    public List<SqlExample> listExamples(@RequestParam(required = false) Long dataSourceId) {
+    public List<SqlExample> listExamples(@RequestParam(name = "dataSourceId", required = false) Long dataSourceId) {
         if (dataSourceId != null) {
             return sqlExampleRepository.findByDataSourceId(dataSourceId);
         }
@@ -60,7 +60,7 @@ public class KnowledgeBaseController {
     }
 
     @DeleteMapping("/examples/{id}")
-    public ResponseEntity<Void> deleteExample(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteExample(@PathVariable("id") Long id) {
         sqlExampleRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }

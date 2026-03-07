@@ -8,8 +8,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -27,9 +30,30 @@ public class ConfigService {
     private static final String KEY_LLM_TEMPERATURE = "llm.temperature";
     private static final String KEY_LLM_MODEL_MAP = "llm.model_map";
 
+    // 企业微信配置键
+    private static final String KEY_WECOM_ENABLED = "wecom.enabled";
+    private static final String KEY_WECOM_CORP_ID = "wecom.corp_id";
+    private static final String KEY_WECOM_AGENT_ID = "wecom.agent_id";
+    private static final String KEY_WECOM_SECRET = "wecom.secret";
+    private static final String KEY_WECOM_TOKEN = "wecom.token";
+    private static final String KEY_WECOM_AES_KEY = "wecom.encoding_aes_key";
+
+    // 飞书配置键
+    private static final String KEY_FEISHU_ENABLED = "feishu.enabled";
+    private static final String KEY_FEISHU_APP_ID = "feishu.app_id";
+    private static final String KEY_FEISHU_APP_SECRET = "feishu.app_secret";
+    private static final String KEY_FEISHU_VERIFICATION_TOKEN = "feishu.verification_token";
+    private static final String KEY_FEISHU_ENCRYPT_KEY = "feishu.encrypt_key";
+
     private final AppConfig appConfig;
     private final SystemConfigRepository configRepository;
     private final ObjectMapper objectMapper;
+
+    @Lazy @Autowired
+    private WeComBotService weComBotService;
+
+    @Lazy @Autowired
+    private FeishuBotService feishuBotService;
 
     /**
      * 启动时从数据库加载配置，覆盖 application.yml 的默认值
@@ -203,5 +227,82 @@ public class ConfigService {
         cfg.setConfigValue(value);
         cfg.setDescription(description);
         configRepository.save(cfg);
+    }
+
+    // ===== 企业微信配置 =====
+
+    /**
+     * 获取企业微信配置
+     */
+    public Map<String, String> getWeComConfig() {
+        Map<String, String> config = new LinkedHashMap<>();
+        config.put("enabled", getConfigValueOrDefault(KEY_WECOM_ENABLED, "false"));
+        config.put("corpId", getConfigValueOrDefault(KEY_WECOM_CORP_ID, ""));
+        config.put("agentId", getConfigValueOrDefault(KEY_WECOM_AGENT_ID, ""));
+        config.put("secret", getConfigValueOrDefault(KEY_WECOM_SECRET, ""));
+        config.put("token", getConfigValueOrDefault(KEY_WECOM_TOKEN, ""));
+        config.put("encodingAesKey", getConfigValueOrDefault(KEY_WECOM_AES_KEY, ""));
+        return config;
+    }
+
+    /**
+     * 保存企业微信配置并刷新服务
+     */
+    public void updateWeComConfig(Map<String, String> config) {
+        if (config.containsKey("enabled"))
+            saveConfig(KEY_WECOM_ENABLED, config.get("enabled"), "企业微信-启用");
+        if (config.containsKey("corpId"))
+            saveConfig(KEY_WECOM_CORP_ID, config.get("corpId"), "企业微信-企业ID");
+        if (config.containsKey("agentId"))
+            saveConfig(KEY_WECOM_AGENT_ID, config.get("agentId"), "企业微信-应用ID");
+        if (config.containsKey("secret"))
+            saveConfig(KEY_WECOM_SECRET, config.get("secret"), "企业微信-应用密钥");
+        if (config.containsKey("token"))
+            saveConfig(KEY_WECOM_TOKEN, config.get("token"), "企业微信-回调Token");
+        if (config.containsKey("encodingAesKey"))
+            saveConfig(KEY_WECOM_AES_KEY, config.get("encodingAesKey"), "企业微信-加密密钥");
+
+        log.info("企业微信配置已更新");
+        weComBotService.refreshConfig();
+    }
+
+    // ===== 飞书配置 =====
+
+    /**
+     * 获取飞书配置
+     */
+    public Map<String, String> getFeishuConfig() {
+        Map<String, String> config = new LinkedHashMap<>();
+        config.put("enabled", getConfigValueOrDefault(KEY_FEISHU_ENABLED, "false"));
+        config.put("appId", getConfigValueOrDefault(KEY_FEISHU_APP_ID, ""));
+        config.put("appSecret", getConfigValueOrDefault(KEY_FEISHU_APP_SECRET, ""));
+        config.put("verificationToken", getConfigValueOrDefault(KEY_FEISHU_VERIFICATION_TOKEN, ""));
+        config.put("encryptKey", getConfigValueOrDefault(KEY_FEISHU_ENCRYPT_KEY, ""));
+        return config;
+    }
+
+    /**
+     * 保存飞书配置并刷新服务
+     */
+    public void updateFeishuConfig(Map<String, String> config) {
+        if (config.containsKey("enabled"))
+            saveConfig(KEY_FEISHU_ENABLED, config.get("enabled"), "飞书-启用");
+        if (config.containsKey("appId"))
+            saveConfig(KEY_FEISHU_APP_ID, config.get("appId"), "飞书-App ID");
+        if (config.containsKey("appSecret"))
+            saveConfig(KEY_FEISHU_APP_SECRET, config.get("appSecret"), "飞书-App Secret");
+        if (config.containsKey("verificationToken"))
+            saveConfig(KEY_FEISHU_VERIFICATION_TOKEN, config.get("verificationToken"), "飞书-Verification Token");
+        if (config.containsKey("encryptKey"))
+            saveConfig(KEY_FEISHU_ENCRYPT_KEY, config.get("encryptKey"), "飞书-Encrypt Key");
+
+        log.info("飞书配置已更新");
+        feishuBotService.refreshConfig();
+    }
+
+    private String getConfigValueOrDefault(String key, String defaultValue) {
+        return configRepository.findById(key)
+                .map(SystemConfig::getConfigValue)
+                .orElse(defaultValue);
     }
 }

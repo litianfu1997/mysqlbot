@@ -41,7 +41,7 @@ public class LlmConfigController {
      * 根据ID获取LLM配置
      */
     @GetMapping("/{id}")
-    public ResponseEntity<LlmConfig> getConfigById(@PathVariable Long id) {
+    public ResponseEntity<LlmConfig> getConfigById(@PathVariable("id") Long id) {
         return llmConfigService.getConfigById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -83,7 +83,7 @@ public class LlmConfigController {
      * 更新LLM配置
      */
     @PutMapping("/{id}")
-    public ResponseEntity<LlmConfig> updateConfig(@PathVariable Long id, @RequestBody LlmConfigRequest request) {
+    public ResponseEntity<LlmConfig> updateConfig(@PathVariable("id") Long id, @RequestBody LlmConfigRequest request) {
         try {
             LlmConfig config = LlmConfig.builder()
                     .name(request.getName())
@@ -105,7 +105,7 @@ public class LlmConfigController {
      * 设置默认配置
      */
     @PostMapping("/{id}/set-default")
-    public ResponseEntity<Void> setDefault(@PathVariable Long id) {
+    public ResponseEntity<Void> setDefault(@PathVariable("id") Long id) {
         try {
             llmConfigService.setDefault(id);
             return ResponseEntity.ok().build();
@@ -118,7 +118,7 @@ public class LlmConfigController {
      * 删除LLM配置
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteConfig(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteConfig(@PathVariable("id") Long id) {
         try {
             llmConfigService.deleteConfig(id);
             return ResponseEntity.ok().build();

@@ -26,7 +26,7 @@ public class ConfigController {
     }
 
     @PostMapping("/llm/model")
-    public void updateModel(@RequestParam String modelAlias) {
+    public void updateModel(@RequestParam("modelAlias") String modelAlias) {
         configService.updateModel(modelAlias);
     }
 
@@ -56,5 +56,39 @@ public class ConfigController {
     @GetMapping("/all")
     public AppConfig getAllConfig() {
         return appConfig;
+    }
+
+    // ===== 企业微信配置 =====
+
+    @GetMapping("/wecom")
+    public Map<String, String> getWeComConfig() {
+        return configService.getWeComConfig();
+    }
+
+    @PostMapping("/wecom")
+    public Map<String, Object> updateWeComConfig(@RequestBody Map<String, String> config) {
+        try {
+            configService.updateWeComConfig(config);
+            return Map.of("success", true, "message", "企业微信配置已保存");
+        } catch (Exception e) {
+            return Map.of("success", false, "message", "保存失败: " + e.getMessage());
+        }
+    }
+
+    // ===== 飞书配置 =====
+
+    @GetMapping("/feishu")
+    public Map<String, String> getFeishuConfig() {
+        return configService.getFeishuConfig();
+    }
+
+    @PostMapping("/feishu")
+    public Map<String, Object> updateFeishuConfig(@RequestBody Map<String, String> config) {
+        try {
+            configService.updateFeishuConfig(config);
+            return Map.of("success", true, "message", "飞书配置已保存");
+        } catch (Exception e) {
+            return Map.of("success", false, "message", "保存失败: " + e.getMessage());
+        }
     }
 }

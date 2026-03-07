@@ -41,7 +41,7 @@ public class ChatController {
      * 获取会话消息列表
      */
     @GetMapping("/sessions/{sessionId}/messages")
-    public List<ChatMessage> getMessages(@PathVariable String sessionId) {
+    public List<ChatMessage> getMessages(@PathVariable("sessionId") String sessionId) {
         return chatService.getMessages(sessionId);
     }
 
@@ -50,7 +50,7 @@ public class ChatController {
      */
     @PostMapping("/sessions/{sessionId}/messages")
     public ResponseEntity<ChatMessage> sendMessage(
-            @PathVariable String sessionId,
+            @PathVariable("sessionId") String sessionId,
             @RequestBody SendMessageRequest request) {
         try {
             ChatMessage response = chatService.chat(sessionId, request.getContent());
@@ -70,7 +70,7 @@ public class ChatController {
      * 分析消息（生成图表）
      */
     @PostMapping("/messages/{messageId}/analyze")
-    public ResponseEntity<ChatMessage> analyzeMessage(@PathVariable Long messageId) {
+    public ResponseEntity<ChatMessage> analyzeMessage(@PathVariable("messageId") Long messageId) {
         try {
             ChatMessage response = chatService.analyzeMessage(messageId);
             return ResponseEntity.ok(response);
@@ -87,7 +87,7 @@ public class ChatController {
      * 删除会话
      */
     @DeleteMapping("/sessions/{sessionId}")
-    public ResponseEntity<Void> deleteSession(@PathVariable String sessionId) {
+    public ResponseEntity<Void> deleteSession(@PathVariable("sessionId") String sessionId) {
         chatService.deleteSession(sessionId);
         return ResponseEntity.ok().build();
     }

@@ -28,7 +28,7 @@ public class DataSourceController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<DataSource> get(@PathVariable Long id) {
+    public ResponseEntity<DataSource> get(@PathVariable("id") Long id) {
         return dataSourceRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -40,7 +40,7 @@ public class DataSourceController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<DataSource> update(@PathVariable Long id, @RequestBody DataSource dataSource) {
+    public ResponseEntity<DataSource> update(@PathVariable("id") Long id, @RequestBody DataSource dataSource) {
         if (!dataSourceRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
@@ -49,7 +49,7 @@ public class DataSourceController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         dataSourceRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }
@@ -72,7 +72,7 @@ public class DataSourceController {
      * 测试数据源连接 (通过 ID)
      */
     @PostMapping("/{id}/test")
-    public ResponseEntity<Map<String, Object>> testConnection(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> testConnection(@PathVariable("id") Long id) {
         return dataSourceRepository.findById(id)
                 .map(ds -> {
                     try {
@@ -91,7 +91,7 @@ public class DataSourceController {
      * 同步数据源 Schema 到向量数据库 (异步)
      */
     @PostMapping("/{id}/sync-schema")
-    public ResponseEntity<Map<String, Object>> syncSchema(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> syncSchema(@PathVariable("id") Long id) {
         try {
             schemaService.syncSchema(id);
             return ResponseEntity.ok(Map.of("success", true, "message", "Schema 同步已在后台启动"));
@@ -104,7 +104,7 @@ public class DataSourceController {
      * 获取同步进度
      */
     @GetMapping("/{id}/sync-progress")
-    public ResponseEntity<SchemaService.SyncProgress> getSyncProgress(@PathVariable Long id) {
+    public ResponseEntity<SchemaService.SyncProgress> getSyncProgress(@PathVariable("id") Long id) {
         return ResponseEntity.ok(schemaService.getSyncProgress(id));
     }
 }
