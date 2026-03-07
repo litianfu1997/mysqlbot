@@ -8,36 +8,57 @@
   >
     <el-tabs v-model="activeTab" class="settings-tabs">
       <el-tab-pane :label="t('settings.tabs.llm')" name="llm">
-        <el-form :model="llmForm" label-width="120px" status-icon>
-          <el-form-item :label="t('settings.llm.baseUrl')">
-            <el-input v-model="llmForm.baseUrl" placeholder="e.g. https://api.openai.com/v1" />
-          </el-form-item>
-          <el-form-item :label="t('settings.llm.apiKey')">
-            <el-input 
-              v-model="llmForm.apiKey" 
-              type="password" 
-              :placeholder="t('settings.llm.apiKey')"
-              show-password 
-            />
-          </el-form-item>
-          <el-form-item :label="t('settings.llm.model')">
-            <el-select v-model="llmForm.defaultModel" :placeholder="t('settings.llm.model')" allow-create filterable default-first-option>
-              <el-option 
-                v-for="(model, alias) in llmForm.modelMap" 
-                :key="alias" 
-                :label="alias" 
-                :value="alias" 
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item :label="t('settings.llm.temperature')">
-            <el-slider v-model="llmForm.temperature" :min="0" :max="1" :step="0.1" show-input />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="success" :loading="testingLlm" @click="testLlmConnection">{{ t('settings.llm.testConnection') }}</el-button>
-            <el-button type="primary" :loading="saving" @click="saveLlmConfig">{{ t('common.save') }}</el-button>
-          </el-form-item>
-        </el-form>
+        <div class="mb-4 flex justify-end">
+          <el-button type="primary" @click="openLlmConfigDialog()">
+            <el-icon class="mr-1"><Plus /></el-icon> {{ t('settings.llm.add') }}
+          </el-button>
+        </div>
+
+        <el-table :data="llmConfigs" style="width: 100%" v-loading="loadingLlmConfigs">
+          <el-table-column prop="name" :label="t('settings.llm.name')" width="150" />
+          <el-table-column prop="baseUrl" :label="t('settings.llm.baseUrl')" width="200" />
+          <el-table-column prop="defaultModel" :label="t('settings.llm.model')" width="120" />
+          <el-table-column :label="t('settings.llm.default')" width="80">
+            <template #default="scope">
+              <el-tag v-if="scope.row.isDefault" type="success" size="small">{{ t('common.confirm') }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="isEnabled" :label="t('settings.llm.status')" width="80">
+            <template #default="scope">
+              <el-tag :type="scope.row.isEnabled ? 'success' : 'info'" size="small">
+                {{ scope.row.isEnabled ? t('settings.llm.enabled') : t('settings.llm.disabled') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('settings.database.actions')" width="280">
+            <template #default="scope">
+              <el-button
+                size="small"
+                type="warning"
+                :loading="testingLlm[scope.row.id]"
+                @click="testLlmConnection(scope.row)"
+              >
+                {{ t('settings.llm.testConnection') }}
+              </el-button>
+              <el-button
+                size="small"
+                :disabled="scope.row.isDefault"
+                @click="setDefaultLlmConfig(scope.row.id)"
+              >
+                {{ t('settings.llm.setDefault') }}
+              </el-button>
+              <el-button size="small" @click="openLlmConfigDialog(scope.row)">{{ t('settings.database.edit') }}</el-button>
+              <el-button
+                size="small"
+                type="danger"
+                :disabled="scope.row.isDefault"
+                @click="deleteLlmConfig(scope.row.id)"
+              >
+                {{ t('common.delete') }}
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </el-tab-pane>
 
       <el-tab-pane :label="t('settings.tabs.database')" name="datasource">
@@ -46,7 +67,7 @@
             <el-icon class="mr-1"><Plus /></el-icon> {{ t('settings.database.add') }}
           </el-button>
         </div>
-        
+
         <el-table :data="dataSources" style="width: 100%" v-loading="loadingDataSources">
           <el-table-column prop="name" :label="t('settings.database.name')" width="150" />
           <el-table-column prop="dbType" label="Type" width="100" />
@@ -55,8 +76,8 @@
           <el-table-column :label="t('settings.database.actions')" width="300">
             <template #default="scope">
               <div v-if="syncing[scope.row.id]" class="sync-progress-box">
-                <el-progress 
-                   :percentage="calculatePercentage(syncProgress[scope.row.id])" 
+                <el-progress
+                   :percentage="calculatePercentage(syncProgress[scope.row.id])"
                    :status="syncProgress[scope.row.id]?.status === 'error' ? 'exception' : (syncProgress[scope.row.id]?.status === 'done' ? 'success' : '')"
                    :stroke-width="16"
                    :text-inside="true"
@@ -67,9 +88,9 @@
                 </div>
               </div>
               <div v-else>
-                <el-button 
-                  size="small" 
-                  type="warning" 
+                <el-button
+                  size="small"
+                  type="warning"
                   @click="startSyncSchema(scope.row)"
                 >
                   {{ t('settings.database.sync') }}
@@ -81,7 +102,7 @@
           </el-table-column>
         </el-table>
       </el-tab-pane>
-      
+
       <el-tab-pane :label="t('settings.tabs.system')" name="system">
           <el-form label-width="120px">
               <el-form-item :label="t('settings.system.language')">
@@ -93,6 +114,54 @@
           </el-form>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- LLM Config Edit Dialog -->
+    <el-dialog
+      v-model="llmDialogVisible"
+      :title="editingLlmConfig ? t('settings.llm.edit') : t('settings.llm.add')"
+      width="500px"
+      append-to-body
+    >
+      <el-form :model="llmForm" label-width="120px">
+        <el-form-item :label="t('settings.llm.name')">
+          <el-input v-model="llmForm.name" placeholder="e.g. DeepSeek, GLM-4, Ollama" />
+        </el-form-item>
+        <el-form-item :label="t('settings.llm.baseUrl')">
+          <el-input v-model="llmForm.baseUrl" placeholder="e.g. https://api.openai.com/v1" />
+        </el-form-item>
+        <el-form-item :label="t('settings.llm.apiKey')">
+          <el-input
+            v-model="llmForm.apiKey"
+            type="password"
+            :placeholder="t('settings.llm.apiKey')"
+            show-password
+          />
+        </el-form-item>
+        <el-form-item :label="t('settings.llm.model')">
+          <el-select v-model="llmForm.defaultModel" :placeholder="t('settings.llm.model')" allow-create filterable default-first-option>
+            <el-option
+              v-for="(model, alias) in llmForm.modelMap"
+              :key="alias"
+              :label="alias"
+              :value="alias"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('settings.llm.temperature')">
+          <el-slider v-model="llmForm.temperature" :min="0" :max="1" :step="0.1" show-input />
+        </el-form-item>
+        <el-form-item :label="t('settings.llm.enabled')">
+          <el-switch v-model="llmForm.isEnabled" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="llmDialogVisible = false">{{ t('common.cancel') }}</el-button>
+          <el-button type="success" :loading="testingLlmConnection" @click="testLlmConfig">{{ t('settings.llm.testConnection') }}</el-button>
+          <el-button type="primary" :loading="savingLlm" @click="saveLlmConfig">{{ t('common.save') }}</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- Data Source Edit Dialog -->
     <el-dialog
@@ -140,8 +209,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
-import { configApi, dataSourceApi, type DataSource } from '@/api'
+import { ref, onMounted } from 'vue'
+import { dataSourceApi, llmConfigApi, type DataSource, type LlmConfig } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -150,16 +219,25 @@ const { t, locale } = useI18n()
 
 const visible = ref(false)
 const activeTab = ref('llm')
-const saving = ref(false)
-const testingLlm = ref(false)
 
-// LLM Config
-const llmForm = ref({
+// LLM Configs
+const llmConfigs = ref<LlmConfig[]>([])
+const loadingLlmConfigs = ref(false)
+const llmDialogVisible = ref(false)
+const editingLlmConfig = ref<LlmConfig | null>(null)
+const savingLlm = ref(false)
+const testingLlm = ref<Record<number, boolean>>({})
+const testingLlmConnection = ref(false)
+
+const llmForm = ref<LlmConfig>({
+  name: '',
   baseUrl: '',
   apiKey: '',
-  defaultModel: '',
+  modelMap: { 'DeepSeek': 'deepseek-chat', 'GPT-3.5': 'gpt-3.5-turbo', 'GPT-4': 'gpt-4-turbo' },
+  defaultModel: 'DeepSeek',
   temperature: 0.1,
-  modelMap: {} as Record<string, string>
+  isDefault: false,
+  isEnabled: true
 })
 
 // Data Sources
@@ -194,20 +272,21 @@ defineExpose({
 })
 
 async function fetchConfigs() {
-  // Fetch LLM config
-  try {
-    const res = await configApi.getLlmConfig()
-    // Merge explicit properties to avoid overwriting modelMap completely if not returned structure is perfect
-    if (res.data) {
-        llmForm.value = { ...llmForm.value, ...res.data }
-    }
-  } catch (e) {
-    console.error('Failed to fetch LLM config', e)
-    ElMessage.error('Failed to load LLM config')
-  }
-
-  // Fetch Data Sources
+  fetchLlmConfigs()
   fetchDataSources()
+}
+
+async function fetchLlmConfigs() {
+  loadingLlmConfigs.value = true
+  try {
+    const res = await llmConfigApi.list()
+    llmConfigs.value = res.data
+  } catch (e) {
+    console.error('Failed to fetch LLM configs', e)
+    ElMessage.error('Failed to load LLM configs')
+  } finally {
+    loadingLlmConfigs.value = false
+  }
 }
 
 async function fetchDataSources() {
@@ -223,38 +302,104 @@ async function fetchDataSources() {
   }
 }
 
-async function testLlmConnection() {
-    testingLlm.value = true
-    try {
-        const res = await configApi.testLlmConnection(llmForm.value)
-        if (res.data && res.data.success) {
-            ElMessage.success('LLM Connection Successful: ' + res.data.message)
-        } else {
-            ElMessage.error('LLM Connection Failed: ' + (res.data?.message || 'Unknown error'))
-        }
-    } catch(e: any) {
-        ElMessage.error('Connection Test Error: ' + (e.message || 'Network error'))
-    } finally {
-        testingLlm.value = false
+// LLM Config Operations
+function openLlmConfigDialog(row?: LlmConfig) {
+  if (row) {
+    editingLlmConfig.value = row
+    llmForm.value = { ...row, modelMap: { ...row.modelMap } }
+  } else {
+    editingLlmConfig.value = null
+    llmForm.value = {
+      name: '',
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: '',
+      modelMap: { 'DeepSeek': 'deepseek-chat' },
+      defaultModel: 'DeepSeek',
+      temperature: 0.1,
+      isDefault: false,
+      isEnabled: true
     }
+  }
+  llmDialogVisible.value = true
+}
+
+async function testLlmConfig() {
+  testingLlmConnection.value = true
+  try {
+    const res = await llmConfigApi.test(llmForm.value)
+    if (res.data && res.data.success) {
+      ElMessage.success('LLM Connection Successful: ' + res.data.message)
+    } else {
+      ElMessage.error('LLM Connection Failed: ' + (res.data?.message || 'Unknown error'))
+    }
+  } catch(e: any) {
+    ElMessage.error('Connection Test Error: ' + (e.message || 'Network error'))
+  } finally {
+    testingLlmConnection.value = false
+  }
+}
+
+async function testLlmConnection(row: LlmConfig) {
+  if (!row.id) return
+  testingLlm.value[row.id] = true
+  try {
+    const res = await llmConfigApi.test(row)
+    if (res.data && res.data.success) {
+      ElMessage.success('LLM Connection Successful: ' + res.data.message)
+    } else {
+      ElMessage.error('LLM Connection Failed: ' + (res.data?.message || 'Unknown error'))
+    }
+  } catch(e: any) {
+    ElMessage.error('Connection Test Error: ' + (e.message || 'Network error'))
+  } finally {
+    testingLlm.value[row.id] = false
+  }
 }
 
 async function saveLlmConfig() {
-  saving.value = true
+  savingLlm.value = true
   try {
     // If a custom model is entered (not in current map), add it
     const model = llmForm.value.defaultModel
     if (model && !llmForm.value.modelMap[model]) {
-        llmForm.value.modelMap[model] = model
+      llmForm.value.modelMap[model] = model
     }
-    
-    await configApi.updateLlmConfig(llmForm.value)
+
+    if (editingLlmConfig.value && editingLlmConfig.value.id) {
+      await llmConfigApi.update(editingLlmConfig.value.id, llmForm.value)
+    } else {
+      await llmConfigApi.create(llmForm.value)
+    }
     ElMessage.success('LLM Configuration saved successfully')
-    // visible.value = false // Optional: keep open
+    llmDialogVisible.value = false
+    fetchLlmConfigs()
   } catch (e) {
     ElMessage.error('Failed to save LLM configuration')
   } finally {
-    saving.value = false
+    savingLlm.value = false
+  }
+}
+
+async function setDefaultLlmConfig(id: number) {
+  try {
+    await llmConfigApi.setDefault(id)
+    ElMessage.success('Default LLM config updated')
+    fetchLlmConfigs()
+  } catch (e) {
+    ElMessage.error('Failed to set default LLM config')
+  }
+}
+
+async function deleteLlmConfig(id: number) {
+  try {
+    await ElMessageBox.confirm('Are you sure you want to delete this LLM config?', 'Warning', {
+      type: 'warning'
+    })
+    await llmConfigApi.delete(id)
+    ElMessage.success('LLM config deleted')
+    fetchLlmConfigs()
+  } catch {
+    // Cancelled
   }
 }
 
@@ -287,7 +432,7 @@ async function testConnection() {
       } else {
           res = await dataSourceApi.testAdHocConnection(dsForm.value)
       }
-      
+
       if (res.data && res.data.success) {
           ElMessage.success(res.data.message || 'Connection successful')
       } else {
@@ -303,11 +448,6 @@ async function testConnection() {
 async function saveDataSource() {
   savingDs.value = true
   try {
-    // If editing, use update (if API exists), otherwise create
-    // dataSourceApi only has create. I'll assume create handles update if ID present or add new method.
-    // Based on previous code read, only 'create' was there.
-    // I should check if backend supports update. If not, maybe create acts as upsert or I need to add update.
-    // For now, assume Create works for new ones.
     if (editingDataSource.value && dsForm.value.id) {
         await dataSourceApi.update(dsForm.value.id, dsForm.value)
     } else {
@@ -398,10 +538,9 @@ async function deleteDataSource(id: number) {
         await ElMessageBox.confirm('Are you sure you want to delete this data source?', 'Warning', {
             type: 'warning'
         })
-        // Check if API has delete
-        // If not, I can't delete. I'll check api/index.ts. It didn't have delete.
-        // I will add it to api definition later if needed.
-        ElMessage.info('Delete functionality not implemented in frontend API yet')
+        await dataSourceApi.delete(id)
+        ElMessage.success('Data source deleted')
+        fetchDataSources()
     } catch {
         // Cancelled
     }
