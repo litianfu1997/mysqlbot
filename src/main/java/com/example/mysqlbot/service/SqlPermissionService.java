@@ -30,7 +30,7 @@ public class SqlPermissionService {
      * 应用权限规则
      *
      * @param originalSql 原始生成的 SQL
-     * @param engine      数据库类型 (MySQL, PostgreSQL)
+     * @param engine      数据库类型 (PostgreSQL)
      * @param filterRule  权限过滤规则 (例如: "dept_id = 1001")
      * @return 修改后的 SQL
      */
@@ -42,7 +42,7 @@ public class SqlPermissionService {
      * 应用权限规则（支持指定LLM配置）
      *
      * @param originalSql 原始生成的 SQL
-     * @param engine      数据库类型 (MySQL, PostgreSQL)
+     * @param engine      数据库类型 (PostgreSQL)
      * @param filterRule  权限过滤规则 (例如: "dept_id = 1001")
      * @param llmConfig   LLM配置（可选）
      * @return 修改后的 SQL

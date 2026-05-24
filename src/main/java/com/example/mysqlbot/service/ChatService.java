@@ -121,7 +121,7 @@ public class ChatService {
 
             if (permissionRule != null && !permissionRule.isBlank()) {
                 try {
-                    finalSql = sqlPermissionService.applyPermission(finalSql, "MySQL", permissionRule, llmConfig);
+                    finalSql = sqlPermissionService.applyPermission(finalSql, "PostgreSQL", permissionRule, llmConfig);
                     log.info("应用权限后的 SQL: {}", finalSql);
                 } catch (Exception e) {
                     log.error("权限应用失败，回退到原始 SQL", e);
