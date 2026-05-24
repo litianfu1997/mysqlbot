@@ -7,6 +7,11 @@ spring:
   application:
     name: MySqlBot
 
+  # ===== Java 21 虚拟线程 =====
+  threads:
+    virtual:
+      enabled: true
+
   # ===== 主数据库 (MySQL - 存储配置、会话等) =====
   datasource:
     url: jdbc:mysql://localhost:3306/mysqlbot?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
