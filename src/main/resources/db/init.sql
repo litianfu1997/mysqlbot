@@ -1,107 +1,137 @@
--- MySqlBot 数据库初始化脚本
--- 在 MySQL 中执行此脚本
+-- MySqlBot 数据库初始化脚本 (PostgreSQL)
+-- 前置：先手工创建数据库
+--   createdb -U postgres mysqlbot
+-- 然后在 mysqlbot 库下执行本脚本：
+--   psql -U postgres -d mysqlbot -f init.sql
 
-CREATE DATABASE IF NOT EXISTS mysqlbot DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE mysqlbot;
+-- ===== pgvector 扩展 (需要超级用户权限) =====
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ===== 数据源配置表 =====
 CREATE TABLE IF NOT EXISTS data_source (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name        VARCHAR(100) NOT NULL COMMENT '数据源名称',
-    description VARCHAR(500) COMMENT '描述',
-    db_type     VARCHAR(20) NOT NULL COMMENT '数据库类型: mysql, postgresql, oracle',
-    host        VARCHAR(200) NOT NULL COMMENT '主机地址',
-    port        INT NOT NULL COMMENT '端口',
-    db_name     VARCHAR(100) NOT NULL COMMENT '数据库名',
-    username    VARCHAR(100) NOT NULL COMMENT '用户名',
-    password    VARCHAR(500) NOT NULL COMMENT '密码(加密存储)',
-    status      TINYINT DEFAULT 1 COMMENT '状态: 1=正常, 0=禁用',
-    schema_synced_at DATETIME COMMENT 'Schema 最后同步时间',
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_name (name)
-) COMMENT='数据源配置';
+    id               BIGSERIAL PRIMARY KEY,
+    name             VARCHAR(100) NOT NULL,
+    description      VARCHAR(500),
+    db_type          VARCHAR(20) NOT NULL,
+    host             VARCHAR(200) NOT NULL,
+    port             INT NOT NULL,
+    db_name          VARCHAR(100) NOT NULL,
+    username         VARCHAR(100) NOT NULL,
+    password         VARCHAR(500) NOT NULL,
+    status           SMALLINT DEFAULT 1,
+    schema_synced_at TIMESTAMP,
+    created_at       TIMESTAMP DEFAULT NOW(),
+    updated_at       TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT uk_data_source_name UNIQUE (name)
+);
+COMMENT ON TABLE  data_source IS '数据源配置';
+COMMENT ON COLUMN data_source.db_type IS '数据库类型: postgresql';
+COMMENT ON COLUMN data_source.status  IS '状态: 1=正常, 0=禁用';
+COMMENT ON COLUMN data_source.schema_synced_at IS 'Schema 最后同步时间';
 
--- ===== LLM配置表 =====
+-- ===== LLM 配置表 =====
 CREATE TABLE IF NOT EXISTS llm_config (
-    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name          VARCHAR(100) NOT NULL UNIQUE COMMENT '配置名称',
-    base_url      VARCHAR(500) NOT NULL COMMENT 'API Base URL',
-    api_key       VARCHAR(500) NOT NULL COMMENT 'API Key',
-    model_map     JSON COMMENT '模型映射 {"别名": "实际模型名"}',
-    default_model VARCHAR(100) COMMENT '默认模型别名',
-    temperature   DECIMAL(3,2) DEFAULT 0.1,
-    is_default    TINYINT DEFAULT 0 COMMENT '是否默认配置',
-    is_enabled    TINYINT DEFAULT 1,
-    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT='LLM配置表';
+    id            BIGSERIAL PRIMARY KEY,
+    name          VARCHAR(100) NOT NULL UNIQUE,
+    base_url      VARCHAR(500) NOT NULL,
+    api_key       VARCHAR(500) NOT NULL,
+    model_map     JSONB,
+    default_model VARCHAR(100),
+    temperature   NUMERIC(3,2) DEFAULT 0.1,
+    is_default    SMALLINT DEFAULT 0,
+    is_enabled    SMALLINT DEFAULT 1,
+    created_at    TIMESTAMP DEFAULT NOW(),
+    updated_at    TIMESTAMP DEFAULT NOW()
+);
+COMMENT ON TABLE  llm_config IS 'LLM 配置表';
+COMMENT ON COLUMN llm_config.model_map     IS '模型映射 {"别名": "实际模型名"}';
+COMMENT ON COLUMN llm_config.default_model IS '默认模型别名';
+COMMENT ON COLUMN llm_config.is_default    IS '是否默认配置';
 
 -- ===== 对话会话表 =====
 CREATE TABLE IF NOT EXISTS chat_session (
-    id          VARCHAR(36) PRIMARY KEY COMMENT '会话ID (UUID)',
-    title       VARCHAR(200) COMMENT '会话标题',
-    data_source_id BIGINT COMMENT '关联数据源',
-    llm_config_id BIGINT COMMENT '关联LLM配置',
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_created_at (created_at)
-) COMMENT='对话会话';
+    id             VARCHAR(36) PRIMARY KEY,
+    title          VARCHAR(200),
+    data_source_id BIGINT,
+    llm_config_id  BIGINT,
+    created_at     TIMESTAMP DEFAULT NOW(),
+    updated_at     TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_session_created_at ON chat_session (created_at);
+COMMENT ON TABLE  chat_session IS '对话会话';
+COMMENT ON COLUMN chat_session.id IS '会话ID (UUID)';
 
 -- ===== 对话消息表 =====
 CREATE TABLE IF NOT EXISTS chat_message (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    session_id  VARCHAR(36) NOT NULL COMMENT '会话ID',
-    role        VARCHAR(20) NOT NULL COMMENT '角色: user, assistant',
-    content     TEXT NOT NULL COMMENT '消息内容',
-    sql_query   TEXT COMMENT '生成的 SQL',
-    sql_result  LONGTEXT COMMENT 'SQL 执行结果 (JSON)',
-    error_msg   TEXT COMMENT '错误信息',
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_session_id (session_id)
-) COMMENT='对话消息';
+    id         BIGSERIAL PRIMARY KEY,
+    session_id VARCHAR(36) NOT NULL,
+    role       VARCHAR(20) NOT NULL,
+    content    TEXT NOT NULL,
+    sql_query  TEXT,
+    sql_result TEXT,
+    error_msg  TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message (session_id);
+COMMENT ON TABLE  chat_message IS '对话消息';
+COMMENT ON COLUMN chat_message.role       IS '角色: user, assistant';
+COMMENT ON COLUMN chat_message.sql_query  IS '生成的 SQL';
+COMMENT ON COLUMN chat_message.sql_result IS 'SQL 执行结果 (JSON)';
 
 -- ===== SQL 示例表 (用于 RAG 优化) =====
 CREATE TABLE IF NOT EXISTS sql_example (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    data_source_id  BIGINT NOT NULL COMMENT '关联数据源',
-    question        TEXT NOT NULL COMMENT '自然语言问题',
-    sql_query       TEXT NOT NULL COMMENT '对应的 SQL',
-    description     VARCHAR(500) COMMENT '说明',
-    is_active       TINYINT DEFAULT 1 COMMENT '是否启用',
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_data_source_id (data_source_id)
-) COMMENT='SQL 示例库 (Few-shot 学习)';
+    id             BIGSERIAL PRIMARY KEY,
+    data_source_id BIGINT NOT NULL,
+    question       TEXT NOT NULL,
+    sql_query      TEXT NOT NULL,
+    description    VARCHAR(500),
+    is_active      SMALLINT DEFAULT 1,
+    created_at     TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sql_example_data_source_id ON sql_example (data_source_id);
+COMMENT ON TABLE sql_example IS 'SQL 示例库 (Few-shot 学习)';
 
 -- ===== 术语表 (业务术语映射) =====
 CREATE TABLE IF NOT EXISTS term_glossary (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    data_source_id  BIGINT COMMENT '关联数据源 (NULL 表示全局)',
-    term            VARCHAR(200) NOT NULL COMMENT '业务术语',
-    definition      TEXT NOT NULL COMMENT '术语定义/对应的数据库字段说明',
-    is_active       TINYINT DEFAULT 1,
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_data_source_id (data_source_id)
-) COMMENT='业务术语表';
-
--- 插入示例数据源（测试用）
-INSERT IGNORE INTO data_source (name, description, db_type, host, port, db_name, username, password)
-VALUES ('示例MySQL数据源', '用于测试的 MySQL 数据源', 'mysql', 'localhost', 3306, 'test', 'root', 'root');
+    id             BIGSERIAL PRIMARY KEY,
+    data_source_id BIGINT,
+    term           VARCHAR(200) NOT NULL,
+    definition     TEXT NOT NULL,
+    is_active      SMALLINT DEFAULT 1,
+    created_at     TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_term_glossary_data_source_id ON term_glossary (data_source_id);
+COMMENT ON TABLE  term_glossary IS '业务术语表';
+COMMENT ON COLUMN term_glossary.data_source_id IS '关联数据源 (NULL 表示全局)';
 
 -- ===== 系统配置表 (Key-Value 持久化) =====
 CREATE TABLE IF NOT EXISTS system_config (
-    config_key   VARCHAR(100) PRIMARY KEY COMMENT '配置Key',
-    config_value TEXT COMMENT '配置值',
-    description  VARCHAR(200) COMMENT '说明',
-    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT='系统配置 (LLM、SQL等运行时配置)';
+    config_key   VARCHAR(100) PRIMARY KEY,
+    config_value TEXT,
+    description  VARCHAR(200),
+    created_at   TIMESTAMP DEFAULT NOW(),
+    updated_at   TIMESTAMP DEFAULT NOW()
+);
+COMMENT ON TABLE system_config IS '系统配置 (LLM、SQL 等运行时配置)';
 
--- ===== Migration: Add llm_config_id to chat_session if not exists =====
--- This is safe to run multiple times
-SET @exist := (SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'chat_session' AND COLUMN_NAME = 'llm_config_id');
-SET @sql := IF(@exist = 0, 'ALTER TABLE chat_session ADD COLUMN llm_config_id BIGINT COMMENT ''关联LLM配置''', 'SELECT ''Column llm_config_id already exists'' AS message');
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+-- ===== 向量存储表 (pgvector) =====
+CREATE TABLE IF NOT EXISTS vector_store (
+    id             BIGSERIAL    PRIMARY KEY,
+    content        TEXT         NOT NULL,
+    data_source_id BIGINT       NOT NULL,
+    doc_type       VARCHAR(20)  NOT NULL,
+    metadata       JSONB        NOT NULL DEFAULT '{}',
+    embedding      vector(1024),
+    created_at     TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+COMMENT ON TABLE  vector_store IS '向量嵌入存储 (智谱 embedding-3, 维度 1024)';
+COMMENT ON COLUMN vector_store.doc_type IS 'schema / example';
+
+CREATE INDEX IF NOT EXISTS idx_vs_ds_type ON vector_store (data_source_id, doc_type);
+-- 数据量较大 (>100 条) 时建议建立 HNSW 索引：
+-- CREATE INDEX IF NOT EXISTS idx_vs_embedding ON vector_store USING hnsw (embedding vector_cosine_ops);
+
+-- ===== 示例数据源 (测试用) =====
+INSERT INTO data_source (name, description, db_type, host, port, db_name, username, password)
+VALUES ('示例PostgreSQL数据源', '用于测试的 PostgreSQL 数据源', 'postgresql', 'localhost', 5432, 'postgres', 'postgres', 'postgres')
+ON CONFLICT (name) DO NOTHING;
