@@ -52,10 +52,9 @@ npm run build                # 构建生产版本
 | `ZhipuLlmService` | LLM调用 (OpenAI协议) |
 | `ZhipuEmbeddingService` | 文本向量化 |
 
-### 双数据库架构
+### 单库架构 (PostgreSQL)
 
-- **MySQL (`mysqlbot`)**: 存储会话、消息、数据源配置、术语表、SQL案例
-- **PostgreSQL (`mysqlbot_vector` + pgvector)**: 存储Schema/案例的向量嵌入，用于RAG检索
+- **PostgreSQL (`mysqlbot` + pgvector)**: 唯一数据库。同库下既存放业务表（会话、消息、数据源配置、术语表、SQL 案例、系统配置），也存放向量嵌入（`vector_store`）。无需独立向量库。
 
 ## 关键配置
 
@@ -63,8 +62,9 @@ npm run build                # 构建生产版本
 
 必需环境变量:
 - `ZHIPU_API_KEY`: LLM API密钥
-- `MYSQL_PASSWORD`: MySQL密码
 - `PG_PASSWORD`: PostgreSQL密码
+
+启动前置: PostgreSQL ≥ 15 实例 + 已安装 `pgvector` 扩展（`CREATE EXTENSION vector;` 需要超级用户权限）。
 
 ## 前端结构
 
