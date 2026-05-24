@@ -27,7 +27,7 @@ public class DataSource {
     private String description;
 
     @Column(name = "db_type", nullable = false, length = 20)
-    private String dbType; // mysql, postgresql
+    private String dbType; // postgresql
 
     @Column(nullable = false, length = 200)
     private String host;
@@ -69,15 +69,12 @@ public class DataSource {
     }
 
     /**
-     * 构建 JDBC URL
+     * 构建 JDBC URL (仅支持 PostgreSQL)
      */
     public String buildJdbcUrl() {
-        return switch (dbType.toLowerCase()) {
-            case "mysql" -> String.format(
-                    "jdbc:mysql://%s:%d/%s?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true",
-                    host, port, dbName);
-            case "postgresql" -> String.format("jdbc:postgresql://%s:%d/%s", host, port, dbName);
-            default -> throw new IllegalArgumentException("不支持的数据库类型: " + dbType);
-        };
+        if (!"postgresql".equalsIgnoreCase(dbType)) {
+            throw new IllegalArgumentException("不支持的数据库类型: " + dbType + " (仅支持 postgresql)");
+        }
+        return String.format("jdbc:postgresql://%s:%d/%s", host, port, dbName);
     }
 }
