@@ -1,10 +1,6 @@
 package com.example.mysqlbot.config;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,51 +8,26 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import javax.sql.DataSource;
 
 /**
- * PgVector 数据源配置
- * 使用智谱 ZAI SDK 做嵌入，JdbcTemplate 直接操作 vector_store 表
+ * pgvector 表初始化与 JdbcTemplate Bean。
+ * 复用主 DataSource —— 业务表与 vector_store 同库 (PostgreSQL)。
  */
 @Slf4j
 @Configuration
 public class VectorStoreConfig {
 
-    @Value("${spring.datasource-pgvector.url}")
-    private String pgUrl;
-
-    @Value("${spring.datasource-pgvector.username}")
-    private String pgUsername;
-
-    @Value("${spring.datasource-pgvector.password}")
-    private String pgPassword;
-
     /**
-     * PgVector 专用数据源（与主 MySQL 数据源分离）
-     */
-    @Bean(name = "pgVectorDataSource")
-    public DataSource pgVectorDataSource() {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl(pgUrl);
-        config.setUsername(pgUsername);
-        config.setPassword(pgPassword);
-        config.setDriverClassName("org.postgresql.Driver");
-        config.setMaximumPoolSize(5);
-        config.setPoolName("PgVectorPool");
-        return new HikariDataSource(config);
-    }
-
-    /**
-     * 给 VectorStoreService 专用的 JdbcTemplate（连接 pgvector 数据库）
+     * 给 VectorStoreService 使用的 JdbcTemplate（复用主数据源）。
+     * Bean 名保留为 pgVectorJdbcTemplate 以避免修改调用方。
      */
     @Bean(name = "pgVectorJdbcTemplate")
-    public JdbcTemplate pgVectorJdbcTemplate(
-            @Qualifier("pgVectorDataSource") DataSource pgVectorDataSource) {
-        JdbcTemplate jt = new JdbcTemplate(pgVectorDataSource);
+    public JdbcTemplate pgVectorJdbcTemplate(DataSource dataSource) {
+        JdbcTemplate jt = new JdbcTemplate(dataSource);
         initVectorStoreTable(jt);
         return jt;
     }
 
     /**
-     * 启动时自动创建 vector_store 表（如不存在）
-     * 在 pgVectorJdbcTemplate Bean 初始化时调用，确保数据源已就绪
+     * 启动时自动创建 vector_store 表（如不存在）。
      */
     private void initVectorStoreTable(JdbcTemplate jt) {
         try {
