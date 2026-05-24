@@ -78,14 +78,17 @@ graph TD
 ## 🚀 快速开始
 
 ### 1. 环境准备
-- **Java**: 17+
+- **Java**: 21+
 - **Node.js**: 18+
-- **MySQL**: 8.0+
-- **PostgreSQL**: 需安装 [pgvector](https://github.com/pgvector/pgvector) 扩展
+- **PostgreSQL**: 15+，需安装 [pgvector](https://github.com/pgvector/pgvector) 扩展
 
 ### 2. 数据库配置
-1. **MySQL**: 创建数据库 `mysqlbot`，执行 `src/main/resources/db/init.sql` 初始化表结构。
-2. **PostgreSQL**: 创建数据库 `mysqlbot_vector`，执行 `src/main/resources/db/pgvector_init.sql`。
+唯一数据库为 PostgreSQL，业务表与向量表同库。
+```bash
+createdb -U postgres mysqlbot
+psql -U postgres -d mysqlbot -f src/main/resources/db/init.sql
+```
+（若选择由 JPA `ddl-auto: update` 自建业务表，可仅手工执行 `CREATE EXTENSION vector;` 然后启动应用；`vector_store` 表会由 `VectorStoreConfig` 自动创建。）
 
 ### 3. 后端启动
 1. 将 `src/main/resources/application-template.yml` 重命名为 `application.yml`。
@@ -95,7 +98,6 @@ graph TD
 export ZHIPU_API_KEY=your_api_key
 
 # 数据库配置
-export MYSQL_PASSWORD=your_mysql_password
 export PG_PASSWORD=your_pg_password
 ```
 3. 运行主类 `MySqlBotApplication`。
