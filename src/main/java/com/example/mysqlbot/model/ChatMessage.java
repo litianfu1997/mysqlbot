@@ -35,7 +35,7 @@ public class ChatMessage {
     @Column(name = "sql_query", columnDefinition = "TEXT")
     private String sqlQuery;
 
-    @Column(name = "sql_result", columnDefinition = "LONGTEXT")
+    @Column(name = "sql_result", columnDefinition = "TEXT")
     private String sqlResult;
 
     @Column(name = "error_msg", columnDefinition = "TEXT")

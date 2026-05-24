@@ -61,7 +61,7 @@ npm run build                # 构建生产版本
 配置文件: `src/main/resources/application.yml` (从 `application-template.yml` 复制)
 
 必需环境变量:
-- `ZHIPU_API_KEY`: LLM API密钥
+- `DEEPSEEK_API_KEY`: LLM API密钥（默认走 DeepSeek，兼容 OpenAI 协议；base-url 可切换 OpenAI/智谱/通义千问等）
 - `PG_PASSWORD`: PostgreSQL密码
 
 启动前置: PostgreSQL ≥ 15 实例 + 已安装 `pgvector` 扩展（`CREATE EXTENSION vector;` 需要超级用户权限）。

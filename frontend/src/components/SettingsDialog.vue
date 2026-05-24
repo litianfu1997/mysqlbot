@@ -173,10 +173,10 @@
     >
       <el-form :model="llmForm" label-width="120px">
         <el-form-item :label="t('settings.llm.name')">
-          <el-input v-model="llmForm.name" placeholder="e.g. DeepSeek, GLM-4, Ollama" />
+          <el-input v-model="llmForm.name" placeholder="e.g. DeepSeek, OpenAI, GLM-4, Ollama" />
         </el-form-item>
         <el-form-item :label="t('settings.llm.baseUrl')">
-          <el-input v-model="llmForm.baseUrl" placeholder="e.g. https://api.openai.com/v1" />
+          <el-input v-model="llmForm.baseUrl" placeholder="https://api.deepseek.com" />
         </el-form-item>
         <el-form-item :label="t('settings.llm.apiKey')">
           <el-input
@@ -281,8 +281,8 @@ const llmForm = ref<LlmConfig>({
   name: '',
   baseUrl: '',
   apiKey: '',
-  modelMap: { 'DeepSeek': 'deepseek-chat', 'GPT-3.5': 'gpt-3.5-turbo', 'GPT-4': 'gpt-4-turbo' },
-  defaultModel: 'DeepSeek',
+  modelMap: { 'DeepSeek-V4-Flash': 'deepseek-v4-flash', 'DeepSeek-V4-Pro': 'deepseek-v4-pro', 'GPT-4o-mini': 'gpt-4o-mini' },
+  defaultModel: 'DeepSeek-V4-Flash',
   temperature: 0.1,
   isDefault: false,
   isEnabled: true
@@ -385,8 +385,8 @@ function openLlmConfigDialog(row?: LlmConfig) {
       name: '',
       baseUrl: 'https://api.deepseek.com',
       apiKey: '',
-      modelMap: { 'DeepSeek': 'deepseek-chat' },
-      defaultModel: 'DeepSeek',
+      modelMap: { 'DeepSeek-V4-Flash': 'deepseek-v4-flash', 'DeepSeek-V4-Pro': 'deepseek-v4-pro', 'GPT-4o-mini': 'gpt-4o-mini' },
+      defaultModel: 'DeepSeek-V4-Flash',
       temperature: 0.1,
       isDefault: false,
       isEnabled: true

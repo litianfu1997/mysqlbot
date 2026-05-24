@@ -46,22 +46,26 @@ public class AppConfig {
     @Data
     public static class LlmConfig {
         /**
-         * 模型名称映射
-         * key: 用于前端展示的模型别名 (e.g. "GPT-4o")
-         * value: 实际调用的模型名 (e.g. "gpt-4o-2024-05-13")
+         * 模型名称映射 (默认 DeepSeek；其他兼容 OpenAI 协议的厂商可自行替换)
+         * key: 用于前端展示的模型别名 (e.g. "DeepSeek")
+         * value: 实际调用的模型名 (e.g. "deepseek-chat")
+         * <p>
+         * 兼容 OpenAI 协议的厂商示例：
+         *   - OpenAI: "GPT-4o-mini" -> "gpt-4o-mini"
+         *   - 智谱:   "GLM-4"       -> "glm-4"
          */
         private Map<String, String> modelMap = new java.util.HashMap<>(Map.of(
-                "DeepSeek", "deepseek-chat",
-                "GPT-3.5", "gpt-3.5-turbo",
-                "GPT-4", "gpt-4-turbo"));
+                "DeepSeek-V4-Flash", "deepseek-v4-flash",
+                "DeepSeek-V4-Pro", "deepseek-v4-pro",
+                "GPT-4o-mini", "gpt-4o-mini"));
 
         /** 当前默认使用的模型别名 */
-        private String defaultModel = "DeepSeek";
+        private String defaultModel = "DeepSeek-V4-Flash";
 
         /** API Key */
         private String apiKey = "your-api-key";
 
-        /** Base URL */
+        /** Base URL；DeepSeek 官方端点（兼容 OpenAI 协议），可替换为其他厂商 */
         private String baseUrl = "https://api.deepseek.com";
 
         /** 温度系数 0.0 ~ 1.0 (越低越精确，越高越有创造力) */

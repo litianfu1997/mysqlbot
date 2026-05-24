@@ -29,21 +29,24 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  # ===== Spring AI - LLM 配置 =====
+  # ===== Spring AI - LLM 配置 (OpenAI 兼容协议) =====
   ai:
     openai:
-      # 使用智谱 (兼容 OpenAI 协议)
-      # 也可换成 https://api.openai.com 或 https://dashscope.aliyuncs.com/compatible-mode/v1 (通义千问)
-      base-url: https://open.bigmodel.cn/api/paas/v4
-      api-key: ${ZHIPU_API_KEY:your_api_key_here}
+      # 默认使用 DeepSeek (兼容 OpenAI 协议)
+      # 也可换成其他兼容 OpenAI 协议的厂商：
+      #   - OpenAI:   https://api.openai.com/v1             (模型: gpt-4o-mini)
+      #   - 智谱:     https://open.bigmodel.cn/api/paas/v4   (模型: glm-4)
+      #   - 通义千问: https://dashscope.aliyuncs.com/compatible-mode/v1
+      base-url: https://api.deepseek.com
+      api-key: ${DEEPSEEK_API_KEY:your_api_key_here}
       chat:
         options:
-          model: glm-4
+          model: deepseek-v4-flash
           temperature: 0.6
           max-tokens: 2048
       embedding:
         options:
-          model: embedding-3
+          model: text-embedding-3-small
 
     # ===== PgVector 向量数据库 (与主库同库) =====
     vectorstore:
