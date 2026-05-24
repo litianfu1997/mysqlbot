@@ -87,9 +87,6 @@ public class SchemaService {
                         String fullTableName = tableName;
                         if (tableSchema != null && !tableSchema.isBlank()) {
                             fullTableName = tableSchema + "." + tableName;
-                        } else if ("mysql".equalsIgnoreCase(ds.getDbType())) {
-                            fullTableName = ds.getDbName() + "." + tableName;
-                            tableSchema = null;
                         }
 
                         progress.setCurrentTable(fullTableName); // 更新当前正在提取的表名
