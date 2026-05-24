@@ -13,7 +13,7 @@
 </Instruction>
 
 <Info>
-  <db-engine> MySQL </db-engine>
+  <db-engine> PostgreSQL </db-engine>
   <m-schema>
 {schemaContext}
   </m-schema>
@@ -42,10 +42,10 @@
     **严禁猜测表名或字段名，只能使用【表结构】中存在的表和字段**。
   </rule>
   <rule priority="high">
-    **引用规范（MySQL）：**
-    1. 必须对数据库名、表名、字段名、别名外层加反引号（`）。
-    2. 点号（.）不能包含在反引号内，必须写成 `schema`.`table`。
-    3. 当标识符为关键字、含特殊字符或需保留大小写时必须加反引号。
+    **引用规范（PostgreSQL）：**
+    1. 标识符默认大小写不敏感且会被折叠为小写；只有在标识符是 PG 保留字（如 user、order、group、desc、select 等）、含特殊字符或需保留大小写时才必须使用双引号（"）包裹。
+    2. 点号（.）不能包含在双引号内，必须写成 "schema"."table"。
+    3. 严禁使用反引号（`），反引号在 PostgreSQL 中是非法字符。
   </rule>
   <rule priority="high">
     **别名与字段规范：**
@@ -53,7 +53,7 @@
     2. 多表查询时，所有字段引用必须明确限定表别名（例如 `t1.column`）。
     3. 禁止使用星号(*)，必须明确列出所需具体字段名。
     4. **强制中文别名：对于 SELECT 出来的所有结果列（包括聚合函数列等），必须使用 AS 赋予其高可读性的【中文别名】（例如 `AS \`客户名称\``）。请尽可能优先提取 <m-schema> 中对应字段附带的【字段说明/备注】作为该列的中文别名。**
-    5. 避免与 MySQL 关键字冲突（如 `order`, `group`, `desc`），如有冲突必须加反引号。
+    5. 避免与 PostgreSQL 保留字冲突（如 user、order、group、desc、select），如有冲突必须使用双引号包裹。
   </rule>
   <rule>
     **格式化规范：**
