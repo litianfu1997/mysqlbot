@@ -2,8 +2,6 @@ server:
   port: 8080
 
 spring:
-  autoconfigure:
-    exclude: org.springframework.ai.autoconfigure.vectorstore.pgvector.PgVectorStoreAutoConfiguration
   application:
     name: MySqlBot
 
@@ -12,12 +10,12 @@ spring:
     virtual:
       enabled: true
 
-  # ===== 主数据库 (MySQL - 存储配置、会话等) =====
+  # ===== 主数据库 (PostgreSQL - 业务表 + pgvector 同库) =====
   datasource:
-    url: jdbc:mysql://localhost:3306/mysqlbot?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-    username: root
-    password: ${MYSQL_PASSWORD:root}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:postgresql://localhost:5432/mysqlbot
+    username: postgres
+    password: ${PG_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -28,13 +26,13 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
   # ===== Spring AI - LLM 配置 =====
   ai:
     openai:
-      # 使用 DeepSeek (兼容 OpenAI 协议)
+      # 使用智谱 (兼容 OpenAI 协议)
       # 也可换成 https://api.openai.com 或 https://dashscope.aliyuncs.com/compatible-mode/v1 (通义千问)
       base-url: https://open.bigmodel.cn/api/paas/v4
       api-key: ${ZHIPU_API_KEY:your_api_key_here}
@@ -47,19 +45,13 @@ spring:
         options:
           model: embedding-3
 
-    # ===== PgVector 向量数据库 =====
+    # ===== PgVector 向量数据库 (与主库同库) =====
     vectorstore:
       pgvector:
         index-type: HNSW
         distance-type: COSINE_DISTANCE
         dimensions: 1536  # OpenAI text-embedding-3-small 维度
         initialize-schema: true
-
-  # ===== PgVector 数据库连接 =====
-  datasource-pgvector:
-    url: jdbc:postgresql://localhost:5432/mysqlbot_vector
-    username: postgres
-    password: ${PG_PASSWORD:postgres}
 
 # ===== MySqlBot 自定义配置 =====
 mysqlbot:
