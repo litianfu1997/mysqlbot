@@ -2,10 +2,11 @@ package com.example.mysqlbot.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.core.task.support.TaskExecutorAdapter;
 import org.springframework.scheduling.annotation.EnableAsync;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * 异步任务配置
@@ -16,13 +17,7 @@ import java.util.concurrent.Executor;
 public class AsyncConfig {
 
     @Bean("imBotExecutor")
-    public Executor imBotExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(5);
-        executor.setQueueCapacity(50);
-        executor.setThreadNamePrefix("im-bot-");
-        executor.initialize();
-        return executor;
+    public TaskExecutor imBotExecutor() {
+        return new TaskExecutorAdapter(Executors.newVirtualThreadPerTaskExecutor());
     }
 }
