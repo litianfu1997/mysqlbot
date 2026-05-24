@@ -225,7 +225,6 @@
         </el-form-item>
         <el-form-item label="Type">
           <el-select v-model="dsForm.dbType" placeholder="Select Type">
-            <el-option label="MySQL" value="mysql" />
             <el-option label="PostgreSQL" value="postgresql" />
           </el-select>
         </el-form-item>
@@ -302,9 +301,9 @@ const activeIntervals = ref<Record<number, number>>({})
 
 const dsForm = ref<DataSource>({
   name: '',
-  dbType: 'mysql',
+  dbType: 'postgresql',
   host: 'localhost',
-  port: 3306,
+  port: 5432,
   dbName: '',
   username: '',
   password: ''
@@ -485,9 +484,9 @@ function openDataSourceDialog(row?: DataSource) {
     editingDataSource.value = false
     dsForm.value = {
       name: '',
-      dbType: 'mysql',
+      dbType: 'postgresql',
       host: 'localhost',
-      port: 3306,
+      port: 5432,
       dbName: '',
       username: '',
       password: ''
