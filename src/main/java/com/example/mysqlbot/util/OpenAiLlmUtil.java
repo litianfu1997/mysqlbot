@@ -37,6 +37,33 @@ public class OpenAiLlmUtil {
         return chat(messages, temperature, null, false);
     }
 
+    /** 普通 Chat，允许覆盖模型名（null 时使用构造时传入的 model） */
+    public String chat(List<Map<String, String>> messages, double temperature, String modelOverride) {
+        String effectiveModel = (modelOverride != null && !modelOverride.isBlank()) ? modelOverride : this.model;
+        ChatRequest request = new ChatRequest();
+        request.setModel(effectiveModel);
+        request.setTemperature(temperature);
+        request.setMessages(messages);
+
+        log.debug("OpenAiLlmUtil request: model={}, messages={}", effectiveModel, messages.size());
+
+        try {
+            ChatResponse response = restClient.post()
+                    .uri("/chat/completions")
+                    .body(request)
+                    .retrieve()
+                    .body(ChatResponse.class);
+
+            if (response == null || response.getChoices() == null || response.getChoices().isEmpty()) {
+                throw new RuntimeException("LLM 返回为空");
+            }
+            return response.getChoices().get(0).getMessage().getContent();
+        } catch (Exception e) {
+            log.error("OpenAiLlmUtil request failed: {}", e.getMessage());
+            throw new RuntimeException("LLM 调用失败: " + e.getMessage(), e);
+        }
+    }
+
     /**
      * Chat 请求
      *

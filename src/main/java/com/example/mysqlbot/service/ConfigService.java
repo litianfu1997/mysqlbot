@@ -55,6 +55,9 @@ public class ConfigService {
     @Lazy @Autowired
     private FeishuBotService feishuBotService;
 
+    @Lazy @Autowired
+    private LlmService llmService;
+
     /**
      * 启动时从数据库加载配置，覆盖 application.yml 的默认值
      */
@@ -125,6 +128,7 @@ public class ConfigService {
             current.setTemperature(newConfig.getTemperature());
             saveConfig(KEY_LLM_TEMPERATURE, String.valueOf(newConfig.getTemperature()), "LLM Temperature");
         }
+        llmService.evictGlobalProvider();
         log.info("LLM 配置已更新并持久化: {}", current);
     }
 
@@ -150,16 +154,16 @@ public class ConfigService {
     }
 
     /**
-     * 测试 LLM 连接（使用智谱 zai-sdk）
+     * 测试全局 LLM 连接
      */
     public boolean testLlmConnection(AppConfig.LlmConfig config) {
         try {
             AppConfig.LlmConfig llm = appConfig.getLlm();
 
             String apiKey = config.getApiKey() != null ? config.getApiKey() : llm.getApiKey();
+            String baseUrl = config.getBaseUrl() != null ? config.getBaseUrl() : llm.getBaseUrl();
             String modelAlias = config.getDefaultModel() != null ? config.getDefaultModel() : llm.getDefaultModel();
 
-            // 解析别名 -> 实际模型名
             String modelName = modelAlias;
             if (config.getModelMap() != null && config.getModelMap().containsKey(modelAlias)) {
                 modelName = config.getModelMap().get(modelAlias);
@@ -167,37 +171,37 @@ public class ConfigService {
                 modelName = llm.getModelMap().get(modelAlias);
             }
 
-            log.info("Testing LLM connection via ZhipuAiClient: model={}", modelName);
+            log.info("Testing global LLM connection: baseUrl={}, model={}", baseUrl, modelName);
 
-            // 使用 zai-sdk 测试连接
-            ai.z.openapi.ZhipuAiClient zhipuClient = ai.z.openapi.ZhipuAiClient.builder()
-                    .ofZHIPU()
-                    .apiKey(apiKey)
-                    .build();
-
-            var messages = java.util.List.of(
-                    ai.z.openapi.service.model.ChatMessage.builder()
-                            .role(ai.z.openapi.service.model.ChatMessageRole.USER.value())
-                            .content("请用一句话回答：1+1等于多少？")
-                            .build());
-
-            ai.z.openapi.service.model.ChatCompletionCreateParams params = ai.z.openapi.service.model.ChatCompletionCreateParams
-                    .builder()
-                    .model(modelName)
-                    .messages(messages)
-                    .temperature(0.1f) // 显式使用 float
-                    .build();
-
-            ai.z.openapi.service.model.ChatCompletionResponse response = zhipuClient.chat()
-                    .createChatCompletion(params);
-
-            boolean success = response != null
-                    && response.isSuccess()
-                    && response.getData() != null
-                    && response.getData().getChoices() != null
-                    && !response.getData().getChoices().isEmpty();
-            log.info("LLM connection test {}", success ? "success" : "failed");
-            return success;
+            boolean isZhipu = baseUrl != null && baseUrl.contains("bigmodel.cn");
+            if (isZhipu) {
+                ai.z.openapi.ZhipuAiClient zhipuClient = ai.z.openapi.ZhipuAiClient.builder()
+                        .ofZHIPU().apiKey(apiKey).build();
+                var messages = java.util.List.of(
+                        ai.z.openapi.service.model.ChatMessage.builder()
+                                .role(ai.z.openapi.service.model.ChatMessageRole.USER.value())
+                                .content("请用一句话回答：1+1等于多少？").build());
+                ai.z.openapi.service.model.ChatCompletionCreateParams params =
+                        ai.z.openapi.service.model.ChatCompletionCreateParams.builder()
+                                .model(modelName).messages(messages).temperature(0.1f).build();
+                ai.z.openapi.service.model.ChatCompletionResponse response =
+                        zhipuClient.chat().createChatCompletion(params);
+                boolean success = response != null && response.isSuccess()
+                        && response.getData() != null
+                        && response.getData().getChoices() != null
+                        && !response.getData().getChoices().isEmpty();
+                log.info("LLM connection test {}", success ? "success" : "failed");
+                return success;
+            } else {
+                String effectiveBaseUrl = (baseUrl != null && !baseUrl.isBlank()) ? baseUrl : "https://api.openai.com/v1";
+                com.example.mysqlbot.util.OpenAiLlmUtil util =
+                        new com.example.mysqlbot.util.OpenAiLlmUtil(effectiveBaseUrl, apiKey, modelName);
+                String response = util.chat(java.util.List.of(
+                        Map.of("role", "user", "content", "1+1=?")), 0.1);
+                boolean success = response != null && !response.isBlank();
+                log.info("LLM connection test {}", success ? "success" : "failed");
+                return success;
+            }
         } catch (Exception e) {
             log.error("LLM connection test failed", e);
             throw new RuntimeException(e.getMessage(), e);

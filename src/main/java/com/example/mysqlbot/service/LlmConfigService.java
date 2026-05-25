@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,9 @@ public class LlmConfigService {
     private final LlmConfigRepository llmConfigRepository;
     private final AppConfig appConfig;
     private final ObjectMapper objectMapper;
+
+    @Lazy @Autowired
+    private LlmService llmService;
 
     /**
      * 启动时检查是否需要从system_config迁移现有LLM配置
@@ -135,7 +140,9 @@ public class LlmConfigService {
             existing.setIsDefault(true);
         }
 
-        return llmConfigRepository.save(existing);
+        LlmConfig saved = llmConfigRepository.save(existing);
+        llmService.evictProvider(id);
+        return saved;
     }
 
     /**
@@ -163,6 +170,7 @@ public class LlmConfigService {
             throw new IllegalArgumentException("不能删除默认配置");
         }
 
+        llmService.evictProvider(id);
         llmConfigRepository.deleteById(id);
     }
 

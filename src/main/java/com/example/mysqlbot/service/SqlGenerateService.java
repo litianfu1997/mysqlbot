@@ -29,7 +29,7 @@ public class SqlGenerateService {
     private final AppConfig appConfig;
     private final RagService ragService;
     private final TermGlossaryRepository termGlossaryRepository;
-    private final ZhipuLlmService zhipuLlmService;
+    private final LlmService llmService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Value("${mysqlbot.sql.max-retry:3}")
@@ -81,9 +81,9 @@ public class SqlGenerateService {
         String llmResponse;
         double temperature = llmConfig != null ? llmConfig.getTemperature().doubleValue() : appConfig.getLlm().getTemperature();
         if (llmConfig != null) {
-            llmResponse = zhipuLlmService.chatWithConfig(null, prompt, temperature, llmConfig);
+            llmResponse = llmService.chatWithConfig(null, prompt, temperature, llmConfig);
         } else {
-            llmResponse = zhipuLlmService.chat(prompt, temperature);
+            llmResponse = llmService.chat(prompt, temperature);
         }
         log.debug("LLM 响应:\n{}", llmResponse);
 
