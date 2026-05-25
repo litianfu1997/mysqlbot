@@ -6,7 +6,11 @@ export default {
         delete: '删除',
         success: '成功',
         error: '错误',
-        loading: '加载中...'
+        loading: '加载中...',
+        default: '默认',
+        unknownError: '未知错误',
+        pleaseWait: '请稍候...',
+        processing: '处理中...'
     },
     chat: {
         newChat: '新会话',
@@ -44,6 +48,16 @@ export default {
             trendAnalysis: '趋势分析',
             userGrowth: '用户增长',
             revenue: '收入分布'
+        },
+        messages: {
+            switchDataSourceSuccess: '已切换数据源并创建新对话',
+            switchDataSourceTo: '已切换到数据源：{name}',
+            switchDataSourceFailed: '切换数据源失败',
+            switchLlmConfigTo: '已切换LLM配置：{name}',
+            deleteTitle: '删除会话',
+            deleteConfirm: '确定要删除此会话吗？',
+            deleteConfirmBtn: '删除',
+            sessionDeleted: '会话已删除'
         }
     },
     settings: {
@@ -51,7 +65,9 @@ export default {
         tabs: {
             llm: '大模型配置',
             database: '数据库配置',
-            system: '系统设置'
+            system: '系统设置',
+            wecom: '企业微信集成',
+            feishu: '飞书集成'
         },
         llm: {
             add: '添加配置',
@@ -87,6 +103,48 @@ export default {
         },
         system: {
             language: '语言设置'
+        },
+        wecom: {
+            corpIdLabel: '企业ID (CorpId)',
+            corpIdPlaceholder: '企业微信 CorpId',
+            agentIdLabel: '应用ID (AgentId)',
+            agentIdPlaceholder: '应用 AgentId',
+            secretLabel: '应用密钥 (Secret)',
+            secretPlaceholder: '应用 Secret',
+            tokenLabel: '回调 Token',
+            tokenPlaceholder: '接收消息服务器配置的 Token',
+            aesKeyLabel: 'AES Key',
+            aesKeyPlaceholder: 'EncodingAESKey',
+            enableLabel: '启用企业微信',
+            saveButton: '保存企业微信配置'
+        },
+        feishu: {
+            appIdLabel: '应用 ID (App ID)',
+            appIdPlaceholder: '飞书 App ID',
+            appSecretLabel: '应用密钥 (App Secret)',
+            appSecretPlaceholder: '飞书 App Secret',
+            verificationTokenLabel: '验证 Token',
+            verificationTokenPlaceholder: 'Verification Token',
+            encryptKeyLabel: '加密密钥 (Encrypt Key)',
+            encryptKeyPlaceholder: 'Encrypt Key',
+            enableLabel: '启用飞书',
+            saveButton: '保存飞书配置'
+        },
+        sync: {
+            status: {
+                preparing: '准备中...',
+                extracting: '🚀 提取表结构',
+                embedding: '🧠 向量化模型处理',
+                done: '✅ 同步完成',
+                error: '❌ 同步失败',
+                processing: '处理中...'
+            },
+            messages: {
+                started: '同步进程已在后台启动',
+                completed: 'Schema 同步完成！',
+                failed: '同步失败: {error}'
+            }
         }
     }
 }
+

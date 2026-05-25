@@ -6,7 +6,11 @@ export default {
         delete: 'Delete',
         success: 'Success',
         error: 'Error',
-        loading: 'Loading...'
+        loading: 'Loading...',
+        default: 'Default',
+        unknownError: 'Unknown error',
+        pleaseWait: 'Please wait...',
+        processing: 'Processing...'
     },
     chat: {
         newChat: 'New Chat',
@@ -44,6 +48,16 @@ export default {
             trendAnalysis: 'Trend Analysis',
             userGrowth: 'User Growth',
             revenue: 'Revenue'
+        },
+        messages: {
+            switchDataSourceSuccess: 'Switched data source and created new chat',
+            switchDataSourceTo: 'Switched to data source: {name}',
+            switchDataSourceFailed: 'Failed to switch data source',
+            switchLlmConfigTo: 'Switched LLM config: {name}',
+            deleteTitle: 'Delete Session',
+            deleteConfirm: 'Are you sure you want to delete this chat?',
+            deleteConfirmBtn: 'Delete',
+            sessionDeleted: 'Session deleted'
         }
     },
     settings: {
@@ -51,7 +65,9 @@ export default {
         tabs: {
             llm: 'LLM Config',
             database: 'Database Config',
-            system: 'System'
+            system: 'System',
+            wecom: 'WeCom Integration',
+            feishu: 'Feishu Integration'
         },
         llm: {
             add: 'Add Config',
@@ -87,6 +103,48 @@ export default {
         },
         system: {
             language: 'Language'
+        },
+        wecom: {
+            corpIdLabel: 'Corp ID (CorpId)',
+            corpIdPlaceholder: 'WeCom CorpId',
+            agentIdLabel: 'Agent ID (AgentId)',
+            agentIdPlaceholder: 'App AgentId',
+            secretLabel: 'App Secret',
+            secretPlaceholder: 'App Secret',
+            tokenLabel: 'Callback Token',
+            tokenPlaceholder: 'Callback server Token',
+            aesKeyLabel: 'AES Key',
+            aesKeyPlaceholder: 'EncodingAESKey',
+            enableLabel: 'Enable WeCom',
+            saveButton: 'Save WeCom Config'
+        },
+        feishu: {
+            appIdLabel: 'App ID',
+            appIdPlaceholder: 'Feishu App ID',
+            appSecretLabel: 'App Secret',
+            appSecretPlaceholder: 'Feishu App Secret',
+            verificationTokenLabel: 'Verification Token',
+            verificationTokenPlaceholder: 'Verification Token',
+            encryptKeyLabel: 'Encrypt Key',
+            encryptKeyPlaceholder: 'Encrypt Key',
+            enableLabel: 'Enable Feishu',
+            saveButton: 'Save Feishu Config'
+        },
+        sync: {
+            status: {
+                preparing: 'Preparing...',
+                extracting: '🚀 Extracting schema',
+                embedding: '🧠 Embedding vectors',
+                done: '✅ Sync complete',
+                error: '❌ Sync failed',
+                processing: 'Processing...'
+            },
+            messages: {
+                started: 'Sync started in background',
+                completed: 'Schema sync complete!',
+                failed: 'Sync failed: {error}'
+            }
         }
     }
 }
+

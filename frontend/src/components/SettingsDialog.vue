@@ -84,7 +84,7 @@
                 />
                 <div class="sync-status">
                   <span class="sync-state-text" :class="syncProgress[scope.row.id]?.status">{{ getStatusLabel(syncProgress[scope.row.id]) }}</span>
-                  <span class="sync-table-name" :title="syncProgress[scope.row.id]?.currentTable">{{ syncProgress[scope.row.id]?.currentTable || '请稍候...' }}</span>
+                  <span class="sync-table-name" :title="syncProgress[scope.row.id]?.currentTable">{{ syncProgress[scope.row.id]?.currentTable || t('common.pleaseWait') }}</span>
                 </div>
               </div>
               <div v-else>
@@ -103,51 +103,51 @@
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="企业微信集成" name="wecom">
-          <el-form label-width="120px" :model="wecomForm" v-loading="loadingWecom">
-              <el-form-item label="企业ID (CorpId)">
-                  <el-input v-model="wecomForm.corpId" placeholder="企业微信CorpId" />
+      <el-tab-pane :label="t('settings.tabs.wecom')" name="wecom">
+          <el-form label-width="160px" :model="wecomForm" v-loading="loadingWecom">
+              <el-form-item :label="t('settings.wecom.corpIdLabel')">
+                  <el-input v-model="wecomForm.corpId" :placeholder="t('settings.wecom.corpIdPlaceholder')" />
               </el-form-item>
-              <el-form-item label="应用ID (AgentId)">
-                  <el-input v-model="wecomForm.agentId" placeholder="应用AgentId" />
+              <el-form-item :label="t('settings.wecom.agentIdLabel')">
+                  <el-input v-model="wecomForm.agentId" :placeholder="t('settings.wecom.agentIdPlaceholder')" />
               </el-form-item>
-              <el-form-item label="应用密钥 (Secret)">
-                  <el-input v-model="wecomForm.secret" type="password" show-password placeholder="应用Secret" />
+              <el-form-item :label="t('settings.wecom.secretLabel')">
+                  <el-input v-model="wecomForm.secret" type="password" show-password :placeholder="t('settings.wecom.secretPlaceholder')" />
               </el-form-item>
-              <el-form-item label="回调 Token">
-                  <el-input v-model="wecomForm.token" placeholder="接收消息服务器配置的Token" />
+              <el-form-item :label="t('settings.wecom.tokenLabel')">
+                  <el-input v-model="wecomForm.token" :placeholder="t('settings.wecom.tokenPlaceholder')" />
               </el-form-item>
-              <el-form-item label="AES Key">
-                  <el-input v-model="wecomForm.encodingAesKey" type="password" show-password placeholder="EncodingAESKey" />
+              <el-form-item :label="t('settings.wecom.aesKeyLabel')">
+                  <el-input v-model="wecomForm.encodingAesKey" type="password" show-password :placeholder="t('settings.wecom.aesKeyPlaceholder')" />
               </el-form-item>
-              <el-form-item label="启用企业微信">
+              <el-form-item :label="t('settings.wecom.enableLabel')">
                   <el-switch v-model="wecomForm.enabled" active-value="true" inactive-value="false" />
               </el-form-item>
               <el-form-item>
-                  <el-button type="primary" :loading="savingWecom" @click="saveWecomConfig">保存企业微信配置</el-button>
+                  <el-button type="primary" :loading="savingWecom" @click="saveWecomConfig">{{ t('settings.wecom.saveButton') }}</el-button>
               </el-form-item>
           </el-form>
       </el-tab-pane>
 
-      <el-tab-pane label="飞书集成" name="feishu">
-          <el-form label-width="150px" :model="feishuForm" v-loading="loadingFeishu">
-              <el-form-item label="应用 ID (App ID)">
-                  <el-input v-model="feishuForm.appId" placeholder="飞书 App ID" />
+      <el-tab-pane :label="t('settings.tabs.feishu')" name="feishu">
+          <el-form label-width="160px" :model="feishuForm" v-loading="loadingFeishu">
+              <el-form-item :label="t('settings.feishu.appIdLabel')">
+                  <el-input v-model="feishuForm.appId" :placeholder="t('settings.feishu.appIdPlaceholder')" />
               </el-form-item>
-              <el-form-item label="应用密钥 (App Secret)">
-                  <el-input v-model="feishuForm.appSecret" type="password" show-password placeholder="飞书 App Secret" />
+              <el-form-item :label="t('settings.feishu.appSecretLabel')">
+                  <el-input v-model="feishuForm.appSecret" type="password" show-password :placeholder="t('settings.feishu.appSecretPlaceholder')" />
               </el-form-item>
-              <el-form-item label="验证 Token">
-                  <el-input v-model="feishuForm.verificationToken" placeholder="Verification Token" />
+              <el-form-item :label="t('settings.feishu.verificationTokenLabel')">
+                  <el-input v-model="feishuForm.verificationToken" :placeholder="t('settings.feishu.verificationTokenPlaceholder')" />
               </el-form-item>
-              <el-form-item label="加密密钥 (Encrypt Key)">
-                  <el-input v-model="feishuForm.encryptKey" type="password" show-password placeholder="Encrypt Key" />
+              <el-form-item :label="t('settings.feishu.encryptKeyLabel')">
+                  <el-input v-model="feishuForm.encryptKey" type="password" show-password :placeholder="t('settings.feishu.encryptKeyPlaceholder')" />
               </el-form-item>
-              <el-form-item label="启用飞书">
+              <el-form-item :label="t('settings.feishu.enableLabel')">
                   <el-switch v-model="feishuForm.enabled" active-value="true" inactive-value="false" />
               </el-form-item>
               <el-form-item>
-                  <el-button type="primary" :loading="savingFeishu" @click="saveFeishuConfig">保存飞书配置</el-button>
+                  <el-button type="primary" :loading="savingFeishu" @click="saveFeishuConfig">{{ t('settings.feishu.saveButton') }}</el-button>
               </el-form-item>
           </el-form>
       </el-tab-pane>
@@ -547,12 +547,12 @@ const calculatePercentage = (progress: any) => {
 }
 
 const getStatusLabel = (progress: any) => {
-    if (!progress) return '准备中...'
-    if (progress.status === 'extracting') return '🚀 提取表结构'
-    if (progress.status === 'embedding') return '🧠 向量化模型处理'
-    if (progress.status === 'done') return '✅ 同步完成'
-    if (progress.status === 'error') return '❌ 同步失败'
-    return '处理中...'
+    if (!progress) return t('settings.sync.status.preparing')
+    if (progress.status === 'extracting') return t('settings.sync.status.extracting')
+    if (progress.status === 'embedding') return t('settings.sync.status.embedding')
+    if (progress.status === 'done') return t('settings.sync.status.done')
+    if (progress.status === 'error') return t('settings.sync.status.error')
+    return t('settings.sync.status.processing')
 }
 
 const pollProgress = (id: number) => {
@@ -569,9 +569,9 @@ const pollProgress = (id: number) => {
                 syncing.value[id] = false
                 
                 if (res.data.status === 'error') {
-                    ElMessage.error(`同步失败: ${res.data.error || '未知错误'}`)
+                    ElMessage.error(t('settings.sync.messages.failed', { error: res.data.error || t('common.unknownError') }))
                 } else {
-                    ElMessage.success('Schema 同步完成！')
+                    ElMessage.success(t('settings.sync.messages.completed'))
                     fetchDataSources()
                 }
             }
@@ -589,7 +589,7 @@ async function startSyncSchema(row: DataSource) {
   try {
     const res = await dataSourceApi.syncSchema(row.id)
     if (res.data && (res.data as any).success) {
-      ElMessage.success('同步进程已在后台启动')
+      ElMessage.success(t('settings.sync.messages.started'))
       pollProgress(row.id)
     } else {
       ElMessage.error((res.data as any).message || 'Failed to start sync')

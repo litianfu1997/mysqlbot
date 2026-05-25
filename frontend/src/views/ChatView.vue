@@ -265,7 +265,7 @@ onMounted(async () => {
 
 const currentSessionTitle = computed(() => {
     const s = chatStore.sessions.find(s => s.id === chatStore.currentSessionId)
-    return s ? s.title : 'New Chat'
+    return s ? s.title : t('chat.newChat')
 })
 
 const currentSessionDataSourceId = computed(() => {
@@ -275,7 +275,7 @@ const currentSessionDataSourceId = computed(() => {
 
 const currentDataSourceName = computed(() => {
     const ds = dataSources.value.find(d => d.id === currentSessionDataSourceId.value)
-    return ds ? ds.name : 'No DB'
+    return ds ? ds.name : t('chat.noDb')
 })
 
 const currentSessionLlmConfigId = computed(() => {
@@ -285,7 +285,7 @@ const currentSessionLlmConfigId = computed(() => {
 
 const currentLlmConfigName = computed(() => {
     const config = llmConfigs.value.find(c => c.id === currentSessionLlmConfigId.value)
-    return config ? config.name : 'Default'
+    return config ? config.name : t('common.default')
 })
 
 async function switchDataSource(command: number | string) {
@@ -301,17 +301,17 @@ async function switchDataSource(command: number | string) {
     if (!session) {
         // 没有活跃会话，直接用该数据源创建新会话
         await chatStore.createSession(dsId, undefined, selectedLlmConfigId.value)
-        ElMessage.success('已切换数据源并创建新对话')
+        ElMessage.success(t('chat.messages.switchDataSourceSuccess'))
         return
     }
 
     // 有活跃会话，询问用户是否新建对话
     try {
-        await chatStore.createSession(dsId, `New Chat - ${dataSources.value.find(d => d.id === dsId)?.name}`, selectedLlmConfigId.value)
         const dsName = dataSources.value.find(d => d.id === dsId)?.name
-        ElMessage.success(`已切换到数据源：${dsName}`)
+        await chatStore.createSession(dsId, `${t('chat.newChat')} - ${dsName}`, selectedLlmConfigId.value)
+        ElMessage.success(t('chat.messages.switchDataSourceTo', { name: dsName }))
     } catch(e) {
-        ElMessage.error('切换数据源失败')
+        ElMessage.error(t('chat.messages.switchDataSourceFailed'))
     }
 }
 
@@ -323,7 +323,7 @@ async function switchLlmConfig(command: number | string) {
     const configId = command as number
     selectedLlmConfigId.value = configId
     const config = llmConfigs.value.find(c => c.id === configId)
-    ElMessage.success(`已切换LLM配置：${config?.name || 'Default'}`)
+    ElMessage.success(t('chat.messages.switchLlmConfigTo', { name: config?.name || t('common.default') }))
 }
 
 function createNewSession() {
@@ -345,13 +345,13 @@ async function confirmCreateSession() {
 
 async function handleDeleteSession(id: string) {
     try {
-        await ElMessageBox.confirm('Are you sure you want to delete this chat?', 'Delete Session', {
-            confirmButtonText: 'Delete',
-            cancelButtonText: 'Cancel',
+        await ElMessageBox.confirm(t('chat.messages.deleteConfirm'), t('chat.messages.deleteTitle'), {
+            confirmButtonText: t('chat.messages.deleteConfirmBtn'),
+            cancelButtonText: t('common.cancel'),
             type: 'warning'
         })
         await chatStore.deleteSession(id)
-        ElMessage.success('Session deleted')
+        ElMessage.success(t('chat.messages.sessionDeleted'))
     } catch {
         // Cancelled
     }
