@@ -23,7 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SuggestQuestionService {
 
-    private final ZhipuLlmService zhipuLlmService;
+    private final LlmService llmService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -54,9 +54,9 @@ public class SuggestQuestionService {
         // 调用 LLM（支持动态配置）
         String llmResponse;
         if (llmConfig != null) {
-            llmResponse = zhipuLlmService.chatWithConfig(null, prompt, 0.5, llmConfig);
+            llmResponse = llmService.chatWithConfig(null, prompt, 0.5, llmConfig);
         } else {
-            llmResponse = zhipuLlmService.chat(prompt, 0.5);
+            llmResponse = llmService.chat(prompt, 0.5);
         }
         log.debug("LLM 推荐问题响应:\n{}", llmResponse);
 

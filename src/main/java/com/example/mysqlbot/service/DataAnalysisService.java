@@ -24,7 +24,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DataAnalysisService {
 
-    private final ZhipuLlmService zhipuLlmService;
+    private final LlmService llmService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -69,9 +69,9 @@ public class DataAnalysisService {
         // 调用 LLM（支持动态配置）
         String llmResponse;
         if (llmConfig != null) {
-            llmResponse = zhipuLlmService.chatWithConfig(null, prompt, 0.3, llmConfig);
+            llmResponse = llmService.chatWithConfig(null, prompt, 0.3, llmConfig);
         } else {
-            llmResponse = zhipuLlmService.chat(prompt, 0.3);
+            llmResponse = llmService.chat(prompt, 0.3);
         }
         log.debug("LLM 分析响应:\n{}", llmResponse);
 

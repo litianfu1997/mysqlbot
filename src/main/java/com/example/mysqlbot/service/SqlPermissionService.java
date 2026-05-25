@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class SqlPermissionService {
 
-    private final ZhipuLlmService zhipuLlmService;
+    private final LlmService llmService;
 
     // 匹配 ```sql ... ``` 代码块
     private static final Pattern SQL_PATTERN = Pattern.compile(
@@ -63,9 +63,9 @@ public class SqlPermissionService {
         // 调用 LLM（支持动态配置）
         String llmResponse;
         if (llmConfig != null) {
-            llmResponse = zhipuLlmService.chatWithConfig(null, prompt, 0.1, llmConfig);
+            llmResponse = llmService.chatWithConfig(null, prompt, 0.1, llmConfig);
         } else {
-            llmResponse = zhipuLlmService.chat(prompt, 0.1);
+            llmResponse = llmService.chat(prompt, 0.1);
         }
         log.debug("权限重写后的 SQL 响应:\n{}", llmResponse);
 
