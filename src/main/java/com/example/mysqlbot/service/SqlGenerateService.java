@@ -1,13 +1,16 @@
 package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.config.AppConfig;
+import com.example.mysqlbot.model.DataSource;
+import com.example.mysqlbot.model.DatabaseDialect;
 import com.example.mysqlbot.model.LlmConfig;
 import com.example.mysqlbot.model.TermGlossary;
+import com.example.mysqlbot.repository.DataSourceRepository;
 import com.example.mysqlbot.repository.TermGlossaryRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
@@ -18,8 +21,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * SQL 生成服务
- * 使用智谱 LLM（zai-sdk）将自然语言转换为 SQL
+ * SQL generation service using LLM + RAG to convert natural language to SQL.
  */
 @Slf4j
 @Service
@@ -29,55 +31,60 @@ public class SqlGenerateService {
     private final AppConfig appConfig;
     private final RagService ragService;
     private final TermGlossaryRepository termGlossaryRepository;
+    private final DataSourceRepository dataSourceRepository;
     private final LlmService llmService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Value("${mysqlbot.sql.max-retry:3}")
     private int maxRetry;
 
-    // 匹配 ```sql ... ``` 代码块中的 SQL
+    private String sqlGeneratePrompt;
+
     private static final Pattern SQL_PATTERN = Pattern.compile(
             "```sql\\s*([\\s\\S]+?)\\s*```", Pattern.CASE_INSENSITIVE);
 
-    /**
-     * 根据用户问题和数据源生成 SQL
-     */
+    @PostConstruct
+    public void init() {
+        sqlGeneratePrompt = loadResource("prompts/sql-generate.st");
+        log.info("SqlGenerateService: prompt template cached ({} chars)", sqlGeneratePrompt.length());
+    }
+
     public SqlGenerateResult generate(String question, Long dataSourceId, String chatHistory) {
         return generate(question, dataSourceId, chatHistory, null);
     }
 
-    /**
-     * 根据用户问题和数据源生成 SQL（支持指定LLM配置）
-     */
     public SqlGenerateResult generate(String question, Long dataSourceId, String chatHistory, LlmConfig llmConfig) {
         boolean ragEnabled = appConfig.getRag().isEnabled();
 
-        // 1. RAG 检索相关 Schema（可关闭）
+        // Resolve database dialect for this data source
+        DatabaseDialect dialect = resolveDialect(dataSourceId);
+
+        // 1. RAG retrieval
         String schemaContext;
         if (ragEnabled) {
-            List<VectorStoreService.VectorSearchResult> schemaDocs = ragService.retrieveRelevantSchema(question,
-                    dataSourceId);
+            List<VectorStoreService.VectorSearchResult> schemaDocs = ragService.retrieveRelevantSchema(question, dataSourceId);
             schemaContext = ragService.buildSchemaContext(schemaDocs);
-            log.debug("RAG 检索到的 Schema:\n{}", schemaContext);
+            log.debug("RAG retrieved Schema:\n{}", schemaContext);
         } else {
-            schemaContext = "（RAG 已关闭，未检索 Schema）";
-            log.debug("RAG 已关闭，跳过向量检索");
+            schemaContext = "(RAG disabled, no Schema indexed)";
+            log.debug("RAG disabled, skipping retrieval");
         }
 
-        // 2. 获取业务术语和参考示例
+        // 2. Build context
         String termGlossary = buildTermGlossaryContext(dataSourceId);
-        String sqlExamples = ragEnabled ? buildSqlExamplesContext(question, dataSourceId) : "（RAG 已关闭）";
+        String sqlExamples = ragEnabled ? buildSqlExamplesContext(question, dataSourceId) : "(RAG disabled)";
 
-        // 3. 加载 Prompt 模板并填充
-        String promptTemplate = loadPromptTemplate();
-        String prompt = promptTemplate
+        // 3. Fill prompt template with dialect-aware engine name and quoting rules
+        String prompt = sqlGeneratePrompt
+                .replace("{dbEngine}", dialect.getDisplayName())
+                .replace("{quoteRules}", dialect.getQuotingRules())
                 .replace("{schemaContext}", schemaContext)
                 .replace("{termGlossary}", termGlossary)
                 .replace("{sqlExamples}", sqlExamples)
-                .replace("{chatHistory}", chatHistory != null ? chatHistory : "（无历史对话）")
+                .replace("{chatHistory}", chatHistory != null ? chatHistory : "(no chat history)")
                 .replace("{question}", question);
 
-        // 4. 调用 LLM（支持动态配置）
+        // 4. Call LLM
         String llmResponse;
         double temperature = llmConfig != null ? llmConfig.getTemperature().doubleValue() : appConfig.getLlm().getTemperature();
         if (llmConfig != null) {
@@ -85,14 +92,13 @@ public class SqlGenerateService {
         } else {
             llmResponse = llmService.chat(prompt, temperature);
         }
-        log.debug("LLM 响应:\n{}", llmResponse);
+        log.debug("LLM response:\n{}", llmResponse);
 
-        // 5. 提取 SQL 和 解释
+        // 5. Extract SQL and explanation
         String sql = null;
         String explanation = llmResponse;
 
         try {
-            // 尝试解析 JSON
             String jsonContent = extractJson(llmResponse);
             if (jsonContent != null) {
                 com.fasterxml.jackson.databind.JsonNode rootNode = objectMapper.readTree(jsonContent);
@@ -111,7 +117,6 @@ public class SqlGenerateService {
             log.warn("Failed to parse LLM response as JSON, falling back to regex: {}", e.getMessage());
         }
 
-        // 如果 JSON 解析失败或没提取到 SQL，尝试回退到旧的提取逻辑
         if (sql == null) {
             sql = extractSqlOld(llmResponse);
         }
@@ -124,84 +129,61 @@ public class SqlGenerateService {
                 .build();
     }
 
-    /**
-     * 尝试提取 JSON 字符串（处理可能存在的 Markdown 代码块标记）
-     */
+    private DatabaseDialect resolveDialect(Long dataSourceId) {
+        return dataSourceRepository.findById(dataSourceId)
+                .map(DataSource::getDialect)
+                .orElse(DatabaseDialect.POSTGRESQL);
+    }
+
     private String extractJson(String response) {
-        if (response == null)
-            return null;
+        if (response == null) return null;
         String trimmed = response.trim();
         if (trimmed.startsWith("```json")) {
             int end = trimmed.lastIndexOf("```");
-            if (end > 7) {
-                return trimmed.substring(7, end).trim();
-            }
-        } else if (trimmed.startsWith("```")) { // 有些时候 LLM 可能只写 ```
+            if (end > 7) return trimmed.substring(7, end).trim();
+        } else if (trimmed.startsWith("```")) {
             int end = trimmed.lastIndexOf("```");
-            if (end > 3) {
-                return trimmed.substring(3, end).trim();
-            }
+            if (end > 3) return trimmed.substring(3, end).trim();
         }
-        // 尝试直接查找 { ... }
         int start = response.indexOf('{');
         int end = response.lastIndexOf('}');
-        if (start >= 0 && end > start) {
-            return response.substring(start, end + 1);
-        }
+        if (start >= 0 && end > start) return response.substring(start, end + 1);
         return null;
     }
 
-    /**
-     * 旧的提取逻辑（正则匹配 SQL 代码块）
-     */
     private String extractSqlOld(String response) {
-        if (response == null)
-            return null;
-
-        // 尝试从 ```sql ... ``` 代码块中提取
+        if (response == null) return null;
         Matcher matcher = SQL_PATTERN.matcher(response);
-        if (matcher.find()) {
-            return matcher.group(1).trim();
-        }
-
-        // 尝试直接匹配 SELECT 语句
+        if (matcher.find()) return matcher.group(1).trim();
         String upper = response.toUpperCase().trim();
         if (upper.startsWith("SELECT")) {
             int semicolonIdx = response.indexOf(';');
             return semicolonIdx > 0 ? response.substring(0, semicolonIdx + 1).trim() : response.trim();
         }
-
         return null;
-    }
-
-    private String loadPromptTemplate() {
-        try {
-            ClassPathResource resource = new ClassPathResource("prompts/sql-generate.st");
-            return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new RuntimeException("加载 Prompt 模板失败", e);
-        }
     }
 
     private String buildTermGlossaryContext(Long dataSourceId) {
         List<TermGlossary> terms = termGlossaryRepository.findByDataSourceIdOrDataSourceIdIsNull(dataSourceId);
-        if (terms.isEmpty()) {
-            return "（无特定业务术语）";
-        }
+        if (terms.isEmpty()) return "(no specific business terms)";
         return terms.stream()
                 .map(t -> "- " + t.getTerm() + ": " + t.getDefinition())
                 .collect(Collectors.joining("\n"));
     }
 
     private String buildSqlExamplesContext(String question, Long dataSourceId) {
-        List<VectorStoreService.VectorSearchResult> examples = ragService.retrieveSimilarExamples(question,
-                dataSourceId);
+        List<VectorStoreService.VectorSearchResult> examples = ragService.retrieveSimilarExamples(question, dataSourceId);
         return ragService.buildExamplesContext(examples);
     }
 
-    /**
-     * SQL 生成结果
-     */
+    private static String loadResource(String path) {
+        try (var is = new org.springframework.core.io.ClassPathResource(path).getInputStream()) {
+            return StreamUtils.copyToString(is, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load resource: " + path, e);
+        }
+    }
+
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor

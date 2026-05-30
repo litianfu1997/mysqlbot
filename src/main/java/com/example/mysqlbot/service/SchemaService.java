@@ -1,6 +1,7 @@
 package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.model.DataSource;
+import com.example.mysqlbot.model.DatabaseDialect;
 import com.example.mysqlbot.repository.DataSourceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,8 +15,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * Schema 提取与向量化服务
- * 从目标数据库提取表结构，使用智谱 embedding-3 向量化后存入 pgvector
+ * Schema extraction and vectorization service.
+ * Extracts table structure from target databases, vectorizes with embedding, and stores in pgvector.
  */
 @Slf4j
 @Service
@@ -41,9 +42,6 @@ public class SchemaService {
         return progressMap.getOrDefault(dataSourceId, new SyncProgress());
     }
 
-    /**
-     * 异步同步指定数据源的 Schema 到向量数据库
-     */
     public void syncSchema(Long dataSourceId) {
         SyncProgress progress = new SyncProgress();
         progress.setStatus("extracting");
@@ -53,7 +51,7 @@ public class SchemaService {
             try {
                 doSyncSchema(dataSourceId, progress);
             } catch (Exception e) {
-                log.error("同步数据源任务异常", e);
+                log.error("Schema sync task failed", e);
                 progress.setCompleted(true);
                 progress.setStatus("error");
                 progress.setError(e.getMessage());
@@ -63,9 +61,10 @@ public class SchemaService {
 
     private void doSyncSchema(Long dataSourceId, SyncProgress progress) {
         DataSource ds = dataSourceRepository.findById(dataSourceId)
-                .orElseThrow(() -> new RuntimeException("数据源不存在: " + dataSourceId));
+                .orElseThrow(() -> new RuntimeException("Data source not found: " + dataSourceId));
 
-        log.info("开始同步数据源 [{}] 的 Schema...", ds.getName());
+        DatabaseDialect dialect = ds.getDialect();
+        log.info("Starting schema sync for data source [{}] (type={})...", ds.getName(), dialect.getDisplayName());
 
         List<String> contentList = new ArrayList<>();
         List<Map<String, Object>> metaList = new ArrayList<>();
@@ -74,36 +73,30 @@ public class SchemaService {
             try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
                 DatabaseMetaData metaData = conn.getMetaData();
 
-                // 获取所有表
                 try (ResultSet tables = metaData.getTables(ds.getDbName(), null, "%", new String[] { "TABLE" })) {
-                    // count total tables roughly (not exactly possible with fast next() but we can
-                    // collect them)
-                    // actually we will just extract schema text here
                     while (tables.next()) {
                         String tableName = tables.getString("TABLE_NAME");
                         String tableSchema = tables.getString("TABLE_SCHEM");
                         String tableComment = tables.getString("REMARKS");
 
-                        String fullTableName = tableName;
-                        if (tableSchema != null && !tableSchema.isBlank()) {
-                            fullTableName = tableSchema + "." + tableName;
-                        }
+                        // Build qualified table name with dialect-aware logic
+                        String fullTableName = buildQualifiedTableName(dialect, tableSchema, tableName, ds.getDbName());
 
-                        progress.setCurrentTable(fullTableName); // 更新当前正在提取的表名
+                        progress.setCurrentTable(fullTableName);
 
                         StringBuilder schemaText = new StringBuilder();
-                        schemaText.append("表名: ").append(fullTableName).append("\n");
+                        schemaText.append("Table: ").append(fullTableName).append("\n");
                         if (tableComment != null && !tableComment.isEmpty()) {
-                            schemaText.append("表说明: ").append(tableComment).append("\n");
+                            schemaText.append("Description: ").append(tableComment).append("\n");
                         }
-                        schemaText.append("字段列表:\n");
+                        schemaText.append("Columns:\n");
 
                         try (ResultSet columns = metaData.getColumns(ds.getDbName(), tableSchema, tableName, "%")) {
                             while (columns.next()) {
                                 String colName = columns.getString("COLUMN_NAME");
                                 String colType = columns.getString("TYPE_NAME");
                                 String colComment = columns.getString("REMARKS");
-                                String nullable = "YES".equals(columns.getString("IS_NULLABLE")) ? "可空" : "非空";
+                                String nullable = "YES".equals(columns.getString("IS_NULLABLE")) ? "nullable" : "not null";
 
                                 schemaText.append("  - ").append(colName)
                                         .append(" (").append(colType).append(", ").append(nullable).append(")");
@@ -121,69 +114,25 @@ public class SchemaService {
                             }
                         }
                         if (!primaryKeys.isEmpty()) {
-                            schemaText.append("主键: ").append(String.join(", ", primaryKeys)).append("\n");
+                            schemaText.append("Primary key: ").append(String.join(", ", primaryKeys)).append("\n");
                         }
 
-                        // 新增：获取前 5 条数据示例
-                        schemaText.append("数据示例 (前5条):\n");
-                        try (java.sql.Statement stmt = conn.createStatement()) {
-                            stmt.setMaxRows(5);
-                            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + fullTableName)) {
-                                java.sql.ResultSetMetaData rsmd = rs.getMetaData();
-                                int columnCount = rsmd.getColumnCount();
+                        // Sample data (top 5 rows)
+                        schemaText.append("Sample data (top 5 rows):\n");
+                        appendSampleData(conn, schemaText, fullTableName, dialect);
 
-                                // 追加表头
-                                List<String> headers = new ArrayList<>();
-                                for (int i = 1; i <= columnCount; i++) {
-                                    headers.add(rsmd.getColumnName(i));
-                                }
-                                schemaText.append("| ").append(String.join(" | ", headers)).append(" |\n");
-
-                                // 追加 Markdown 分隔线
-                                List<String> separators = new ArrayList<>();
-                                for (int i = 1; i <= columnCount; i++) {
-                                    separators.add("---");
-                                }
-                                schemaText.append("| ").append(String.join(" | ", separators)).append(" |\n");
-
-                                // 追加数据行
-                                int rowCount = 0;
-                                while (rs.next()) {
-                                    rowCount++;
-                                    List<String> rowValues = new ArrayList<>();
-                                    for (int i = 1; i <= columnCount; i++) {
-                                        Object val = rs.getObject(i);
-                                        String valStr = (val == null) ? "NULL" : val.toString();
-                                        // 截断太长的数据
-                                        if (valStr.length() > 50) {
-                                            valStr = valStr.substring(0, 47) + "...";
-                                        }
-                                        // 替换掉换行符，防止破坏格式，转义管道符
-                                        valStr = valStr.replace("\n", " ").replace("\r", "").replace("|", "\\|");
-                                        rowValues.add(valStr);
-                                    }
-                                    schemaText.append("| ").append(String.join(" | ", rowValues)).append(" |\n");
-                                }
-                                if (rowCount == 0) {
-                                    schemaText.append("(空表)\n");
-                                }
-                            }
-                        } catch (Exception e) {
-                            log.warn("无法获取表 [{}] 的示例数据: {}", fullTableName, e.getMessage());
-                            schemaText.append("(无权限或无法获取示例数据)\n");
-                        }
                         schemaText.append("\n");
 
                         metaList.add(Map.of("tableName", fullTableName));
                         contentList.add(schemaText.toString());
 
-                        progress.setTotalTables(contentList.size()); // 提取阶段仅仅增加总数
+                        progress.setTotalTables(contentList.size());
                     }
                 }
-            } // 关闭目标数据库连接
+            }
 
             if (contentList.isEmpty()) {
-                log.warn("数据源 [{}] 未提取到任何表结构", ds.getName());
+                log.warn("Data source [{}] has no tables", ds.getName());
                 progress.setCompleted(true);
                 progress.setStatus("done");
                 return;
@@ -192,17 +141,15 @@ public class SchemaService {
             progress.setStatus("embedding");
             progress.setProcessedTables(0);
 
-            // 先删除旧向量
             vectorStoreService.deleteByDataSourceAndType(dataSourceId, "schema");
 
-            // 分批写入，更新进度
             int batchSize = 10;
             for (int i = 0; i < contentList.size(); i += batchSize) {
                 int end = Math.min(i + batchSize, contentList.size());
                 List<String> subContent = contentList.subList(i, end);
                 List<Map<String, Object>> subMeta = metaList.subList(i, end);
 
-                progress.setCurrentTable("向量化批次 " + (i / batchSize + 1));
+                progress.setCurrentTable("Embedding batch " + (i / batchSize + 1));
                 vectorStoreService.addDocuments(subContent, dataSourceId, "schema", subMeta);
 
                 progress.setProcessedTables(end);
@@ -214,22 +161,82 @@ public class SchemaService {
 
             progress.setCompleted(true);
             progress.setStatus("done");
-            log.info("数据源 [{}] 同步彻底完成", ds.getName());
+            log.info("Data source [{}] schema sync completed ({} tables)", ds.getName(), contentList.size());
 
         } catch (Exception e) {
-            log.error("获取或者写入 schema 失败", e);
-            throw new RuntimeException("同步失败: " + e.getMessage(), e);
+            log.error("Schema sync failed", e);
+            throw new RuntimeException("Sync failed: " + e.getMessage(), e);
         }
     }
 
     /**
-     * 测试数据源连接
+     * Build a qualified table name with dialect-aware quoting.
+     * MySQL typically uses a single schema (the database name), so we skip the schema prefix
+     * when tableSchema is null, empty, or equals the database name.
      */
+    private String buildQualifiedTableName(DatabaseDialect dialect, String tableSchema, String tableName, String dbName) {
+        boolean useSchemaPrefix = tableSchema != null && !tableSchema.isBlank()
+                && !tableSchema.equalsIgnoreCase(dbName);
+        if (useSchemaPrefix) {
+            return dialect.quoteQualifiedTable(tableSchema, tableName);
+        }
+        return tableName;
+    }
+
+    /**
+     * Query sample data from a table and append as a Markdown table to the schema text.
+     */
+    private void appendSampleData(Connection conn, StringBuilder schemaText, String fullTableName, DatabaseDialect dialect) {
+        try (java.sql.Statement stmt = conn.createStatement()) {
+            stmt.setMaxRows(5);
+            // Use quoted table name for safety
+            String quotedName = fullTableName.contains(".") ? fullTableName : dialect.quoteIdentifier(fullTableName);
+            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + quotedName)) {
+                java.sql.ResultSetMetaData rsmd = rs.getMetaData();
+                int columnCount = rsmd.getColumnCount();
+
+                List<String> headers = new ArrayList<>();
+                for (int i = 1; i <= columnCount; i++) {
+                    headers.add(rsmd.getColumnName(i));
+                }
+                schemaText.append("| ").append(String.join(" | ", headers)).append(" |\n");
+
+                List<String> separators = new ArrayList<>();
+                for (int i = 1; i <= columnCount; i++) {
+                    separators.add("---");
+                }
+                schemaText.append("| ").append(String.join(" | ", separators)).append(" |\n");
+
+                int rowCount = 0;
+                while (rs.next()) {
+                    rowCount++;
+                    List<String> rowValues = new ArrayList<>();
+                    for (int i = 1; i <= columnCount; i++) {
+                        Object val = rs.getObject(i);
+                        String valStr = (val == null) ? "NULL" : val.toString();
+                        if (valStr.length() > 50) {
+                            valStr = valStr.substring(0, 47) + "...";
+                        }
+                        valStr = valStr.replace("\n", " ").replace("\r", "").replace("|", "\\|");
+                        rowValues.add(valStr);
+                    }
+                    schemaText.append("| ").append(String.join(" | ", rowValues)).append(" |\n");
+                }
+                if (rowCount == 0) {
+                    schemaText.append("(empty table)\n");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Cannot get sample data for table [{}]: {}", fullTableName, e.getMessage());
+            schemaText.append("(no permission or unable to fetch sample data)\n");
+        }
+    }
+
     public boolean testConnection(DataSource ds) {
         try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
             return conn.isValid(5);
         } catch (Exception e) {
-            log.error("数据源连接测试失败: {}", e.getMessage());
+            log.error("Data source connection test failed: {}", e.getMessage());
             return false;
         }
     }

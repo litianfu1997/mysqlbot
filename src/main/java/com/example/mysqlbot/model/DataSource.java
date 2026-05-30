@@ -27,7 +27,7 @@ public class DataSource {
     private String description;
 
     @Column(name = "db_type", nullable = false, length = 20)
-    private String dbType; // postgresql
+    private String dbType;
 
     @Column(nullable = false, length = 200)
     private String host;
@@ -69,12 +69,16 @@ public class DataSource {
     }
 
     /**
-     * 构建 JDBC URL (仅支持 PostgreSQL)
+     * Build JDBC URL based on dbType using DatabaseDialect.
      */
     public String buildJdbcUrl() {
-        if (!"postgresql".equalsIgnoreCase(dbType)) {
-            throw new IllegalArgumentException("不支持的数据库类型: " + dbType + " (仅支持 postgresql)");
-        }
-        return String.format("jdbc:postgresql://%s:%d/%s", host, port, dbName);
+        return DatabaseDialect.fromDbType(dbType).buildJdbcUrl(host, port, dbName);
+    }
+
+    /**
+     * Get the dialect for this data source.
+     */
+    public DatabaseDialect getDialect() {
+        return DatabaseDialect.fromDbType(dbType);
     }
 }

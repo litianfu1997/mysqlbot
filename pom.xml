@@ -15,7 +15,7 @@
     <artifactId>mysqlbot</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>MySqlBot</name>
-    <description>基于 LLM + RAG 的 Text-to-SQL 智能问数系统</description>
+    <description>LLM + RAG based Text-to-SQL intelligent data assistant</description>
 
     <properties>
         <java.version>21</java.version>
@@ -47,31 +47,38 @@
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- Spring AI - OpenAI (兼容 DeepSeek/通义千问 等 OpenAI 协议) -->
+        <!-- Spring AI - OpenAI (鍏煎�?DeepSeek/閫氫箟鍗冮棶 �?OpenAI 鍗忚�? -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
             <version>${spring-ai.version}</version>
         </dependency>
 
-        <!-- Spring AI - PgVector 向量数据库 -->
+        <!-- Spring AI - PgVector 鍚戦噺鏁版嵁�?-->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-pgvector-store-spring-boot-starter</artifactId>
             <version>${spring-ai.version}</version>
         </dependency>
 
-        <!-- 智谱 ZAI SDK (embedding-3 等) -->
+        <!-- 鏅鸿�?ZAI SDK (embedding-3 �? -->
         <dependency>
             <groupId>ai.z.openapi</groupId>
             <artifactId>zai-sdk</artifactId>
             <version>0.3.3</version>
         </dependency>
 
-        <!-- PostgreSQL 驱动 -->
+        <!-- PostgreSQL 椹卞�?-->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- MySQL Driver -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
 
@@ -88,27 +95,33 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- 数据库连接池 (动态数据源) -->
+        <!-- Spring Retry -->
+        <dependency>
+            <groupId>org.springframework.retry</groupId>
+            <artifactId>spring-retry</artifactId>
+        </dependency>
+
+        <!-- 鏁版嵁搴撹繛鎺ユ�?(鍔ㄦ€佹暟鎹簮) -->
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
         </dependency>
 
-        <!-- JSqlParser - SQL 解析验证 -->
+        <!-- JSqlParser - SQL 瑙ｆ瀽楠岃瘉 -->
         <dependency>
             <groupId>com.github.jsqlparser</groupId>
             <artifactId>jsqlparser</artifactId>
             <version>4.9</version>
         </dependency>
 
-        <!-- 企业微信 SDK -->
+        <!-- 浼佷笟寰俊 SDK -->
         <dependency>
             <groupId>com.github.binarywang</groupId>
             <artifactId>weixin-java-cp</artifactId>
             <version>4.7.0</version>
         </dependency>
 
-        <!-- 飞书 SDK -->
+        <!-- 椋炰�?SDK -->
         <dependency>
             <groupId>com.larksuite.oapi</groupId>
             <artifactId>oapi-sdk</artifactId>
@@ -169,3 +182,4 @@
         </plugins>
     </build>
 </project>
+

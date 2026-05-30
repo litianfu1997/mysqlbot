@@ -6,19 +6,23 @@ import com.example.mysqlbot.model.LlmConfig;
 import com.example.mysqlbot.repository.ChatMessageRepository;
 import com.example.mysqlbot.repository.ChatSessionRepository;
 import com.example.mysqlbot.repository.LlmConfigRepository;
+import com.example.mysqlbot.repository.DataSourceRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Optional;
+import com.example.mysqlbot.security.SecurityContext;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
- * 对话管理服务
- * 处理多轮对话、会话管理、消息存储
+ * Chat management service handling multi-turn conversations, session management, and message storage.
  */
 @Slf4j
 @Service
@@ -33,22 +37,21 @@ public class ChatService {
     private final SuggestQuestionService suggestQuestionService;
     private final SqlPermissionService sqlPermissionService;
     private final LlmConfigRepository llmConfigRepository;
+    private final DataSourceRepository dataSourceRepository;
     private final ObjectMapper objectMapper;
 
     /**
-     * 创建新会话
+     * Stream event record for SSE.
      */
+    public record StreamEvent(String type, Object data) {}
+
     @Transactional
     public ChatSession createSession(Long dataSourceId, String title) {
         return createSession(dataSourceId, title, null);
     }
 
-    /**
-     * 创建新会话（支持指定LLM配置）
-     */
     @Transactional
     public ChatSession createSession(Long dataSourceId, String title, Long llmConfigId) {
-        // 如果没有指定LLM配置，使用默认配置
         Long effectiveLlmConfigId = llmConfigId;
         if (effectiveLlmConfigId == null) {
             Optional<LlmConfig> defaultConfig = llmConfigRepository.findByIsDefaultTrue();
@@ -56,7 +59,7 @@ public class ChatService {
         }
 
         ChatSession session = ChatSession.builder()
-                .title(title != null ? title : "新对话")
+                .title(title != null ? title : "New Chat")
                 .dataSourceId(dataSourceId)
                 .llmConfigId(effectiveLlmConfigId)
                 .build();
@@ -64,25 +67,16 @@ public class ChatService {
     }
 
     /**
-     * 处理用户消息（核心流程）
+     * Process user message (synchronous, backward compatible).
      */
     @Transactional
     public ChatMessage chat(String sessionId, String userQuestion) {
-        // 1. 获取会话
         ChatSession session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("会话不存在: " + sessionId));
+                .orElseThrow(() -> new RuntimeException("Session not found: " + sessionId));
 
-        // 2. 获取会话关联的LLM配置
-        LlmConfig llmConfig = null;
-        if (session.getLlmConfigId() != null) {
-            llmConfig = llmConfigRepository.findById(session.getLlmConfigId()).orElse(null);
-        }
-        // 如果没有配置，尝试使用默认配置
-        if (llmConfig == null) {
-            llmConfig = llmConfigRepository.findByIsDefaultTrue().orElse(null);
-        }
+        LlmConfig llmConfig = resolveLlmConfig(session);
 
-        // 3. 保存用户消息
+        // Save user message
         ChatMessage userMsg = ChatMessage.builder()
                 .sessionId(sessionId)
                 .role("user")
@@ -90,246 +84,281 @@ public class ChatService {
                 .build();
         messageRepository.save(userMsg);
 
-        // 4. 构建对话历史（最近 6 条）
         String chatHistory = buildChatHistory(sessionId);
 
-        // 5. 生成 SQL (支持重试)
-        int maxRetries = 3; // 默认重试 3 次
-        String currentHistory = chatHistory;
+        // SQL generation with retry
         SqlGenerateService.SqlGenerateResult generateResult = null;
         SqlExecuteService.SqlExecuteResult executeResult = null;
         String lastErrorMsg = null;
 
-        for (int i = 0; i < maxRetries; i++) {
+        for (int i = 0; i < 3; i++) {
+            String currentHistory = chatHistory;
             if (i > 0) {
-                log.info("SQL 执行失败，进行第 {} 次重试，错误信息: {}", i, lastErrorMsg);
-                // 将错误信息追加到对话历史中，引导 LLM 修正
-                currentHistory = chatHistory + "\n\n[System Error]: 上一次生成的 SQL 执行失败，错误信息：" + lastErrorMsg
-                        + "\n请根据错误信息修正 SQL。";
+                log.info("SQL execution failed, retry #{}: {}", i, lastErrorMsg);
+                currentHistory = chatHistory + "\n\n[System Error]: Previous SQL failed: " + lastErrorMsg
+                        + "\nPlease fix the SQL based on the error.";
             }
 
             generateResult = sqlGenerateService.generate(userQuestion, session.getDataSourceId(), currentHistory, llmConfig);
+            if (!generateResult.isSuccess() || generateResult.getSql() == null) break;
 
-            if (!generateResult.isSuccess() || generateResult.getSql() == null) {
-                // 无法生成 SQL，直接跳出
-                break;
-            }
-
-            // 6. 应用行级权限控制
-            String permissionRule = resolvePermissionRule();
-            String finalSql = generateResult.getSql();
-
-            if (permissionRule != null && !permissionRule.isBlank()) {
-                try {
-                    finalSql = sqlPermissionService.applyPermission(finalSql, "PostgreSQL", permissionRule, llmConfig);
-                    log.info("应用权限后的 SQL: {}", finalSql);
-                } catch (Exception e) {
-                    log.error("权限应用失败，回退到原始 SQL", e);
-                }
-            }
-
-            // 7. 执行 SQL
+            String finalSql = applyPermission(generateResult.getSql(), session.getDataSourceId(), llmConfig);
             executeResult = sqlExecuteService.execute(finalSql, session.getDataSourceId());
-
-            if (executeResult.isSuccess()) {
-                // 执行成功，跳出循环
-                break;
-            } else {
-                // 执行失败，记录错误，继续重试
-                lastErrorMsg = executeResult.getErrorMessage();
-            }
+            if (executeResult.isSuccess()) break;
+            lastErrorMsg = executeResult.getErrorMessage();
         }
 
-        ChatMessage assistantMsg;
-
-        if (generateResult == null || !generateResult.isSuccess() || generateResult.getSql() == null) {
-            // 无法生成 SQL
-            assistantMsg = ChatMessage.builder()
-                    .sessionId(sessionId)
-                    .role("assistant")
-                    .content(generateResult != null ? generateResult.getExplanation() : "无法生成 SQL，请检查问题描述。")
-                    .build();
-        } else if (executeResult != null && executeResult.isSuccess()) {
-            // ... (Success handling code mostly same as before) ...
-            String resultJson = null;
-            String content = generateResult.getExplanation();
-            String suggestQuestionsJson = null;
-
-            try {
-                resultJson = objectMapper.writeValueAsString(executeResult);
-            } catch (Exception e) {
-                resultJson = "{}";
-            }
-
-            // 8. 生成推荐问题 (Phase 2)
-            try {
-                List<String> questions = suggestQuestionService.suggest(userQuestion, generateResult.getSql(), llmConfig);
-                suggestQuestionsJson = objectMapper.writeValueAsString(questions);
-            } catch (Exception e) {
-                log.error("生成推荐问题失败", e);
-            }
-
-            assistantMsg = ChatMessage.builder()
-                    .sessionId(sessionId)
-                    .role("assistant")
-                    .content(content)
-                    .sqlQuery(generateResult.getSql())
-                    .sqlResult(resultJson)
-                    .suggestQuestions(suggestQuestionsJson)
-                    .build();
-
-        } else {
-            // 最终执行失败
-            String errorMsg = (executeResult != null) ? executeResult.getErrorMessage() : "未知错误";
-            String content = "SQL 执行失败：" + errorMsg + "\n\n生成的 SQL：\n```sql\n" + generateResult.getSql() + "\n```";
-
-            assistantMsg = ChatMessage.builder()
-                    .sessionId(sessionId)
-                    .role("assistant")
-                    .content(content)
-                    .sqlQuery(generateResult.getSql())
-                    .errorMsg(errorMsg)
-                    .build();
-        }
-
-        // 9. 保存 assistant 消息
+        ChatMessage assistantMsg = buildAssistantMessage(sessionId, userQuestion, generateResult, executeResult, llmConfig);
         messageRepository.save(assistantMsg);
-
-        // 10. 更新会话标题（首次对话时用问题作为标题）
-        if ("新对话".equals(session.getTitle()) && userQuestion.length() > 0) {
-            session.setTitle(userQuestion.length() > 30 ? userQuestion.substring(0, 30) + "..." : userQuestion);
-            sessionRepository.save(session);
-        }
-
+        updateSessionTitle(session, userQuestion);
         return assistantMsg;
     }
 
     /**
-     * 对特定消息进行数据分析（图表生成）
+     * Process user message with SSE streaming.
      */
+    @Transactional
+    public void chatStream(String sessionId, String userQuestion, Consumer<StreamEvent> emitter) {
+        ChatSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new RuntimeException("Session not found: " + sessionId));
+
+        LlmConfig llmConfig = resolveLlmConfig(session);
+
+        // Save user message
+        ChatMessage userMsg = ChatMessage.builder()
+                .sessionId(sessionId)
+                .role("user")
+                .content(userQuestion)
+                .build();
+        messageRepository.save(userMsg);
+
+        emitter.accept(new StreamEvent("user_message", userMsg));
+
+        String chatHistory = buildChatHistory(sessionId);
+
+        // Step 1: Generate SQL
+        emitter.accept(new StreamEvent("status", java.util.Map.of("message", "Generating SQL...")));
+
+        SqlGenerateService.SqlGenerateResult generateResult = null;
+        SqlExecuteService.SqlExecuteResult executeResult = null;
+        String lastErrorMsg = null;
+
+        for (int i = 0; i < 3; i++) {
+            String currentHistory = chatHistory;
+            if (i > 0) {
+                log.info("SQL execution failed, retry #{}: {}", i, lastErrorMsg);
+                currentHistory = chatHistory + "\n\n[System Error]: Previous SQL failed: " + lastErrorMsg
+                        + "\nPlease fix the SQL based on the error.";
+                emitter.accept(new StreamEvent("status", java.util.Map.of("message", "Retrying SQL generation (attempt " + (i + 1) + ")...")));
+            }
+
+            generateResult = sqlGenerateService.generate(userQuestion, session.getDataSourceId(), currentHistory, llmConfig);
+            if (!generateResult.isSuccess() || generateResult.getSql() == null) break;
+
+            emitter.accept(new StreamEvent("sql_generated", java.util.Map.of(
+                    "sql", generateResult.getSql(),
+                    "explanation", generateResult.getExplanation() != null ? generateResult.getExplanation() : ""
+            )));
+
+            String finalSql = applyPermission(generateResult.getSql(), session.getDataSourceId(), llmConfig);
+
+            // Step 2: Execute SQL
+            emitter.accept(new StreamEvent("status", java.util.Map.of("message", "Executing SQL...")));
+            executeResult = sqlExecuteService.execute(finalSql, session.getDataSourceId());
+            if (executeResult.isSuccess()) break;
+            lastErrorMsg = executeResult.getErrorMessage();
+        }
+
+        if (generateResult != null && generateResult.isSuccess() && executeResult != null && executeResult.isSuccess()) {
+            emitter.accept(new StreamEvent("sql_executed", executeResult));
+
+            // Step 3: Generate suggested questions
+            try {
+                List<String> questions = suggestQuestionService.suggest(userQuestion, generateResult.getSql(), llmConfig);
+                emitter.accept(new StreamEvent("suggest_questions", questions));
+            } catch (Exception e) {
+                log.error("Failed to generate suggested questions", e);
+            }
+        }
+
+        ChatMessage assistantMsg = buildAssistantMessage(sessionId, userQuestion, generateResult, executeResult, llmConfig);
+        messageRepository.save(assistantMsg);
+        updateSessionTitle(session, userQuestion);
+
+        emitter.accept(new StreamEvent("complete", assistantMsg));
+    }
+
     @Transactional
     public ChatMessage analyzeMessage(Long messageId) {
         ChatMessage message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new RuntimeException("消息不存在: " + messageId));
+                .orElseThrow(() -> new RuntimeException("Message not found: " + messageId));
 
         if (message.getSqlResult() == null) {
-            throw new RuntimeException("该消息没有数据可分析");
+            throw new RuntimeException("No data to analyze");
         }
 
-        // 获取会话的LLM配置
         ChatSession session = sessionRepository.findById(message.getSessionId()).orElse(null);
-        LlmConfig llmConfig = null;
-        if (session != null && session.getLlmConfigId() != null) {
-            llmConfig = llmConfigRepository.findById(session.getLlmConfigId()).orElse(null);
-        }
-        if (llmConfig == null) {
-            llmConfig = llmConfigRepository.findByIsDefaultTrue().orElse(null);
-        }
+        LlmConfig llmConfig = resolveLlmConfig(session);
 
-        // 尝试找到对应的用户提问
-        // 简单逻辑：找该消息之前的最近一条 User 消息
-        // 如果找不到，就用空字符串，虽然分析效果可能打折，但有了 SQL 和数据也够了
-        String userQuestion = "";
-        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(message.getSessionId());
-        // 找到当前消息的 index
-        int currentIndex = -1;
-        for (int i = 0; i < history.size(); i++) {
-            if (history.get(i).getId().equals(messageId)) {
-                currentIndex = i;
-                break;
-            }
-        }
-        // 往前找 User 消息
-        if (currentIndex > 0) {
-            for (int i = currentIndex - 1; i >= 0; i--) {
-                if ("user".equals(history.get(i).getRole())) {
-                    userQuestion = history.get(i).getContent();
-                    break;
-                }
-            }
-        }
+        String userQuestion = findUserQuestion(message);
 
         try {
-            // 解析 SQL Result JSON
             SqlExecuteService.SqlExecuteResult executeResult = objectMapper.readValue(message.getSqlResult(),
                     SqlExecuteService.SqlExecuteResult.class);
             List<java.util.Map<String, Object>> rows = executeResult.getRows();
-
-            if (rows == null || rows.isEmpty()) {
-                throw new RuntimeException("结果集中没有数据");
-            }
+            if (rows == null || rows.isEmpty()) throw new RuntimeException("No data in results");
 
             DataAnalysisService.AnalysisResult analysis = dataAnalysisService.analyze(
-                    userQuestion,
-                    message.getSqlQuery(),
-                    rows,
-                    llmConfig);
+                    userQuestion, message.getSqlQuery(), rows, llmConfig);
 
             message.setAnalysis(analysis.getInsight());
             message.setChartType(analysis.getChartType());
             message.setXAxis(analysis.getXAxis());
             message.setYAxis(analysis.getYAxis());
-
             return messageRepository.save(message);
-
         } catch (Exception e) {
-            log.error("分析失败", e);
-            throw new RuntimeException("分析失败: " + e.getMessage());
+            log.error("Analysis failed", e);
+            throw new RuntimeException("Analysis failed: " + e.getMessage());
         }
     }
 
-    /**
-     * 获取会话消息列表
-     */
     public List<ChatMessage> getMessages(String sessionId) {
         return messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
     }
 
-    /**
-     * 获取所有会话列表
-     */
     public List<ChatSession> getSessions() {
         return sessionRepository.findAllByOrderByCreatedAtDesc();
     }
 
-    /**
-     * 删除会话
-     */
     @Transactional
     public void deleteSession(String sessionId) {
         messageRepository.deleteBySessionId(sessionId);
         sessionRepository.deleteById(sessionId);
     }
 
-    /**
-     * 构建对话历史字符串（用于多轮对话上下文）
-     */
-    private String buildChatHistory(String sessionId) {
-        List<ChatMessage> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
-        if (messages.isEmpty()) {
-            return "（无历史对话）";
+    // ===== Private helpers =====
+
+    private LlmConfig resolveLlmConfig(ChatSession session) {
+        if (session == null || session.getLlmConfigId() == null) {
+            return llmConfigRepository.findByIsDefaultTrue().orElse(null);
+        }
+        return llmConfigRepository.findById(session.getLlmConfigId()).orElse(null);
+    }
+
+    private LlmConfig resolveLlmConfigById(Long llmConfigId) {
+        if (llmConfigId == null) return null;
+        return llmConfigRepository.findById(llmConfigId).orElse(null);
+    }
+
+    private String applyPermission(String sql, Long dataSourceId, LlmConfig llmConfig) {
+        String permissionRule = resolvePermissionRule();
+        if (permissionRule != null && !permissionRule.isBlank()) {
+            try {
+                String engineName = dataSourceRepository.findById(dataSourceId).map(ds -> ds.getDialect().getDisplayName()).orElse("PostgreSQL");
+                String result = sqlPermissionService.applyPermission(sql, engineName, permissionRule, llmConfig);
+                log.info("SQL after permission applied: {}", result);
+                return result;
+            } catch (Exception e) {
+                log.error("Permission application failed, falling back to original SQL", e);
+            }
+        }
+        return sql;
+    }
+
+    private ChatMessage buildAssistantMessage(String sessionId, String userQuestion,
+            SqlGenerateService.SqlGenerateResult generateResult,
+            SqlExecuteService.SqlExecuteResult executeResult,
+            LlmConfig llmConfig) {
+
+        if (generateResult == null || !generateResult.isSuccess() || generateResult.getSql() == null) {
+            return ChatMessage.builder()
+                    .sessionId(sessionId)
+                    .role("assistant")
+                    .content(generateResult != null ? generateResult.getExplanation() : "Unable to generate SQL, please check your question.")
+                    .build();
         }
 
-        // 取最近 6 条消息
+        if (executeResult != null && executeResult.isSuccess()) {
+            String resultJson = "{}";
+            String suggestQuestionsJson = null;
+            try {
+                resultJson = objectMapper.writeValueAsString(executeResult);
+            } catch (Exception e) { resultJson = "{}"; }
+
+            try {
+                List<String> questions = suggestQuestionService.suggest(userQuestion, generateResult.getSql(), llmConfig);
+                suggestQuestionsJson = objectMapper.writeValueAsString(questions);
+            } catch (Exception e) {
+                log.error("Failed to generate suggested questions", e);
+            }
+
+            return ChatMessage.builder()
+                    .sessionId(sessionId)
+                    .role("assistant")
+                    .content(generateResult.getExplanation())
+                    .sqlQuery(generateResult.getSql())
+                    .sqlResult(resultJson)
+                    .suggestQuestions(suggestQuestionsJson)
+                    .build();
+        }
+
+        String errorMsg = (executeResult != null) ? executeResult.getErrorMessage() : "Unknown error";
+        return ChatMessage.builder()
+                .sessionId(sessionId)
+                .role("assistant")
+                .content("SQL execution failed: " + errorMsg + "\n\nGenerated SQL:\n```sql\n" + generateResult.getSql() + "\n```")
+                .sqlQuery(generateResult.getSql())
+                .errorMsg(errorMsg)
+                .build();
+    }
+
+    private void updateSessionTitle(ChatSession session, String userQuestion) {
+        if ("New Chat".equals(session.getTitle()) && userQuestion.length() > 0) {
+            session.setTitle(userQuestion.length() > 30 ? userQuestion.substring(0, 30) + "..." : userQuestion);
+            sessionRepository.save(session);
+        }
+    }
+
+    private String findUserQuestion(ChatMessage message) {
+        List<ChatMessage> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(message.getSessionId());
+        int currentIndex = -1;
+        for (int i = 0; i < history.size(); i++) {
+            if (history.get(i).getId().equals(message.getId())) { currentIndex = i; break; }
+        }
+        if (currentIndex > 0) {
+            for (int i = currentIndex - 1; i >= 0; i--) {
+                if ("user".equals(history.get(i).getRole())) return history.get(i).getContent();
+            }
+        }
+        return "";
+    }
+
+    /** Build structured message list for multi-turn LLM chat. */
+    private List<java.util.Map<String, String>> buildChatMessages(String sessionId) {
+        List<ChatMessage> msgs = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        int start = Math.max(0, msgs.size() - 6);
+        List<java.util.Map<String, String>> result = new ArrayList<>();
+        for (ChatMessage m : msgs.subList(start, msgs.size())) {
+            java.util.Map<String, String> msg = new LinkedHashMap<>();
+            msg.put("role", m.getRole().equals("user") ? "user" : "assistant");
+            msg.put("content", m.getContent());
+            result.add(msg);
+        }
+        return result;
+    }
+
+    private String buildChatHistory(String sessionId) {
+        List<ChatMessage> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        if (messages.isEmpty()) return "(no chat history)";
         int start = Math.max(0, messages.size() - 6);
         return messages.subList(start, messages.size()).stream()
-                .map(m -> (m.getRole().equals("user") ? "用户: " : "助手: ") + m.getContent())
+                .map(m -> (m.getRole().equals("user") ? "User: " : "Assistant: ") + m.getContent())
                 .collect(Collectors.joining("\n"));
     }
 
-    /**
-     * 解析当前用户的行级权限规则
-     * 当集成 Spring Security 后，可在此从 SecurityContext 获取用户角色并返回对应的过滤条件
-     * 例如: "dept_id = 1001" 或 "tenant_id = 'abc'"
-     * 当前返回 null 表示不应用任何过滤（超级管理员模式）
-     */
     private String resolvePermissionRule() {
-        // TODO: 集成 Spring Security 后在此实现
-        // Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // if (auth != null && auth.getAuthorities().stream().noneMatch(a ->
-        // a.getAuthority().equals("ROLE_ADMIN"))) {
-        // return "dept_id = " + getUserDeptId(auth);
-        // }
-        return null;
+        return SecurityContext.getPermissionRule();
     }
 }
+
+

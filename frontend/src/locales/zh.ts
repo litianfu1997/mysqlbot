@@ -51,6 +51,11 @@ export default {
         tabs: {
             llm: '大模型配置',
             database: '数据库配置',
+            dbType: '类型',
+            dbTypeOptions: {
+                postgresql: 'PostgreSQL',
+                mysql: 'MySQL'
+            }
             system: '系统设置'
         },
         llm: {

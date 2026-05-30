@@ -70,7 +70,7 @@
 
         <el-table :data="dataSources" style="width: 100%" v-loading="loadingDataSources">
           <el-table-column prop="name" :label="t('settings.database.name')" width="150" />
-          <el-table-column prop="dbType" label="Type" width="100" />
+          <el-table-column prop="dbType" :label="t('settings.database.dbType')" width="100" />
           <el-table-column prop="host" :label="t('settings.database.host')" />
           <el-table-column prop="dbName" :label="t('settings.database.database')" />
           <el-table-column :label="t('settings.database.actions')" width="300">
@@ -223,9 +223,10 @@
         <el-form-item :label="t('settings.database.name')">
           <el-input v-model="dsForm.name" placeholder="My Database" />
         </el-form-item>
-        <el-form-item label="Type">
+        <el-form-item :label="t('settings.database.dbType')">
           <el-select v-model="dsForm.dbType" placeholder="Select Type">
             <el-option label="PostgreSQL" value="postgresql" />
+            <el-option label="MySQL" value="mysql" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('settings.database.host')">
@@ -257,7 +258,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { dataSourceApi, llmConfigApi, configApi, type DataSource, type LlmConfig } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -339,6 +340,15 @@ const open = () => {
 
 defineExpose({
   open
+})
+
+// Auto-fill default port when dbType changes
+watch(() => dsForm.value.dbType, (newType) => {
+  if (newType === 'mysql') {
+    dsForm.value.port = 3306
+  } else if (newType === 'postgresql') {
+    dsForm.value.port = 5432
+  }
 })
 
 async function fetchConfigs() {

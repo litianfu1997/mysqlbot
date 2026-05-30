@@ -80,6 +80,11 @@ export default {
             username: 'Username',
             password: 'Password',
             database: 'Database',
+            dbType: 'Type',
+            dbTypeOptions: {
+                postgresql: 'PostgreSQL',
+                mysql: 'MySQL'
+            }
             test: 'Test Connection',
             sync: 'Sync Schema',
             status: 'Status',
