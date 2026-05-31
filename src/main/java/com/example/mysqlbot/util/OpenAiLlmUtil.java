@@ -66,36 +66,52 @@ public class OpenAiLlmUtil {
 
     /** Standard chat, no model override */
     public String chat(List<Map<String, String>> messages, double temperature) {
-        return chat(messages, temperature, null, false);
+        return chat(messages, temperature, null, false, null);
     }
 
     /** Standard chat, with optional model override */
     public String chat(List<Map<String, String>> messages, double temperature, String modelOverride) {
+        return chat(messages, temperature, modelOverride, null);
+    }
+
+    /**
+     * Full chat request with all options including tools.
+     */
+    public String chat(List<Map<String, String>> messages, double temperature, String modelOverride, List<Map<String, Object>> tools) {
         String effectiveModel = (modelOverride != null && !modelOverride.isBlank()) ? modelOverride : this.model;
         ChatRequest request = new ChatRequest();
         request.setModel(effectiveModel);
         request.setTemperature(temperature);
         request.setMessages(messages);
+        request.setTools(tools);
 
-        log.debug("OpenAiLlmUtil request: model={}, messages={}", effectiveModel, messages.size());
-        return executeWithRetry(request);
+        log.debug("OpenAiLlmUtil request: model={}, messages={}, tools={}", effectiveModel, messages.size(), tools != null ? tools.size() : 0);
+        return executeWithRetry(request).getContent();
     }
 
     /**
      * Full chat request with all options.
      */
     public String chat(List<Map<String, String>> messages, double temperature, Integer maxTokens, boolean thinking) {
+        return chat(messages, temperature, maxTokens, thinking, null);
+    }
+
+    /**
+     * Full chat request with all options including tools.
+     */
+    public String chat(List<Map<String, String>> messages, double temperature, Integer maxTokens, boolean thinking, List<Map<String, Object>> tools) {
         ChatRequest request = new ChatRequest();
         request.setModel(model);
         request.setTemperature(temperature);
         request.setMessages(messages);
         request.setMaxTokens(maxTokens);
+        request.setTools(tools);
         if (thinking) {
             request.setThinking(new ThinkingConfig("enabled"));
         }
 
-        log.debug("OpenAiLlmUtil request: model={}, thinking={}, messages={}", model, thinking, messages.size());
-        return executeWithRetry(request);
+        log.debug("OpenAiLlmUtil request: model={}, thinking={}, messages={}, tools={}", model, thinking, messages.size(), tools != null ? tools.size() : 0);
+        return executeWithRetry(request).getContent();
     }
 
     /**
@@ -105,19 +121,36 @@ public class OpenAiLlmUtil {
      * @param messages    chat messages
      * @param temperature sampling temperature
      * @param modelOverride optional model name override
-     * @param callback    receives each token with type "thinking" or "content"
+     * @param callback    receives each token with type "thinking", "content", or "tool_calls"
      * @return the full accumulated response text
      */
     public String chatStream(List<Map<String, String>> messages, double temperature,
                              String modelOverride, StreamCallback callback) {
+        return chatStream(messages, temperature, modelOverride, callback, null);
+    }
+
+    /**
+     * Streaming chat with tools support. Calls the OpenAI-compatible API with stream=true and delivers
+     * tokens in real-time via the provided callback.
+     *
+     * @param messages    chat messages
+     * @param temperature sampling temperature
+     * @param modelOverride optional model name override
+     * @param callback    receives each token with type "thinking", "content", or "tool_calls"
+     * @param tools       optional tools/function calling definitions
+     * @return the full accumulated response text
+     */
+    public String chatStream(List<Map<String, String>> messages, double temperature,
+                             String modelOverride, StreamCallback callback, List<Map<String, Object>> tools) {
         String effectiveModel = (modelOverride != null && !modelOverride.isBlank()) ? modelOverride : this.model;
         ChatRequest request = new ChatRequest();
         request.setModel(effectiveModel);
         request.setTemperature(temperature);
         request.setMessages(messages);
         request.setStream(true);
+        request.setTools(tools);
 
-        log.debug("OpenAiLlmUtil stream request: model={}, messages={}", effectiveModel, messages.size());
+        log.debug("OpenAiLlmUtil stream request: model={}, messages={}, tools={}", effectiveModel, messages.size(), tools != null ? tools.size() : 0);
 
         try {
             String body = STREAM_MAPPER.writeValueAsString(request);
@@ -166,6 +199,13 @@ public class OpenAiLlmUtil {
                         fullContent.append(token);
                         callback.onToken("content", token);
                     }
+
+                    // Tool calls streaming detection
+                    JsonNode toolCallsNode = delta.get("tool_calls");
+                    if (toolCallsNode != null && toolCallsNode.isArray()) {
+                        String toolCallsJson = STREAM_MAPPER.writeValueAsString(toolCallsNode);
+                        callback.onToken("tool_calls", toolCallsJson);
+                    }
                 } catch (Exception e) {
                     log.trace("Failed to parse SSE chunk: {}", data, e);
                 }
@@ -183,7 +223,7 @@ public class OpenAiLlmUtil {
         }
     }
 
-    private String executeWithRetry(ChatRequest request) {
+    private ChatResult executeWithRetry(ChatRequest request) {
         Exception lastException = null;
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             try {
@@ -198,14 +238,21 @@ public class OpenAiLlmUtil {
                 }
 
                 ChatResponse.Choice choice = response.getChoices().get(0);
-                String reasoningContent = choice.getMessage().getReasoningContent();
+                ChatResponse.Choice.Message message = choice.getMessage();
+                String reasoningContent = message.getReasoningContent();
                 if (reasoningContent != null && !reasoningContent.isBlank()) {
                     log.debug("DeepSeek reasoning_content ({}chars): {}...",
                             reasoningContent.length(),
                             reasoningContent.substring(0, Math.min(200, reasoningContent.length())));
                 }
 
-                return choice.getMessage().getContent();
+                // Check for tool calls
+                List<ChatResponse.Choice.ToolCall> toolCalls = message.getToolCalls();
+                if (toolCalls != null && !toolCalls.isEmpty()) {
+                    return new ChatResult(message.getContent(), toolCalls, choice.getFinishReason());
+                }
+
+                return ChatResult.fromContent(message.getContent());
             } catch (Exception e) {
                 lastException = e;
                 if (attempt < MAX_RETRIES) {
@@ -242,6 +289,9 @@ public class OpenAiLlmUtil {
         @JsonProperty("stream")
         private boolean stream = false;
         private ThinkingConfig thinking;
+        private List<Map<String, Object>> tools;
+        @JsonProperty("tool_choice")
+        private String toolChoice;
     }
 
     @Data
@@ -271,6 +321,23 @@ public class OpenAiLlmUtil {
                 private String content;
                 @JsonProperty("reasoning_content")
                 private String reasoningContent;
+                @JsonProperty("tool_calls")
+                private List<ToolCall> toolCalls;
+            }
+
+            @Data
+            @JsonIgnoreProperties(ignoreUnknown = true)
+            public static class ToolCall {
+                private String id;
+                private String type;
+                private FunctionCall function;
+
+                @Data
+                @JsonIgnoreProperties(ignoreUnknown = true)
+                public static class FunctionCall {
+                    private String name;
+                    private String arguments;
+                }
             }
         }
 
@@ -292,6 +359,25 @@ public class OpenAiLlmUtil {
                 @JsonProperty("reasoning_tokens")
                 private int reasoningTokens;
             }
+        }
+    }
+
+    @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ChatResult {
+        private String content;
+        private List<ChatResponse.Choice.ToolCall> toolCalls;
+        @JsonProperty("finish_reason")
+        private String finishReason;
+
+        public ChatResult(String content, List<ChatResponse.Choice.ToolCall> toolCalls, String finishReason) {
+            this.content = content;
+            this.toolCalls = toolCalls;
+            this.finishReason = finishReason;
+        }
+
+        public static ChatResult fromContent(String content) {
+            return new ChatResult(content, null, "stop");
         }
     }
 }
