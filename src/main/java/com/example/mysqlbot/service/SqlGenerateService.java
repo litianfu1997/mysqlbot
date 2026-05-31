@@ -261,12 +261,9 @@ public class SqlGenerateService {
             sql = extractSqlOld(llmResponse);
         }
 
-        String schemaContext = ragService != null ? "" : loadFullSchema(dataSourceId);
-
         return SqlGenerateResult.builder()
                 .sql(sql)
                 .explanation(explanation)
-                .schemaContext(schemaContext)
                 .success(sql != null)
                 .build();
     }
