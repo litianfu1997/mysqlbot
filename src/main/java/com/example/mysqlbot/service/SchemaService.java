@@ -8,6 +8,7 @@ import com.example.mysqlbot.repository.TableRelationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -156,6 +157,9 @@ public class SchemaService {
 
             if (contentList.isEmpty()) {
                 log.warn("Data source [{}] has no tables", ds.getName());
+                // Even when there are no tables, clean up stale auto-inferred relations
+                tableRelationRepository.safelyDeleteByDataSourceIdAndSourceIn(
+                        dataSourceId, List.of("fk", "naming", "llm"));
                 progress.setCompleted(true);
                 progress.setStatus("done");
                 return;
@@ -225,7 +229,11 @@ public class SchemaService {
     /**
      * Runs all three inference strategies and persists the deduplicated results.
      * Manual relations are never touched.
+     * <p>
+     * {@code @Transactional} ensures that the delete and saveAll happen in the same
+     * transaction — if saveAll throws, the delete is rolled back too.
      */
+    @Transactional
     private void inferAndSaveRelations(Long dataSourceId,
                                        List<RelationInferenceService.TableMeta> tableMetas,
                                        String dbEngine) {

@@ -188,13 +188,27 @@ public class RelationInferenceService {
     public List<InferredRelation> inferFromLlm(List<TableMeta> tables, LlmService llmService, String dbEngine) {
         try {
             // 1. Build schemaInfo text (capped at 8000 chars)
+            // The first table is always included (truncated to 8000 if necessary)
+            // to guarantee schemaInfo is never empty even for very wide tables.
             StringBuilder schemaInfo = new StringBuilder();
+            boolean firstTable = true;
             for (TableMeta t : tables) {
                 String block = "Table: " + t.tableName + "\n"
                         + "  Columns: " + String.join(", ", t.columns) + "\n"
                         + "  PrimaryKey: " + String.join(", ", t.primaryKeys) + "\n";
-                if (schemaInfo.length() + block.length() > 8000) break;
-                schemaInfo.append(block);
+                if (firstTable) {
+                    // Always add the first table; truncate if it alone exceeds the limit
+                    if (block.length() > 8000) {
+                        schemaInfo.append(block, 0, 8000).append("...(truncated)\n");
+                    } else {
+                        schemaInfo.append(block);
+                    }
+                    firstTable = false;
+                } else {
+                    // For subsequent tables stop as soon as adding would exceed the limit
+                    if (schemaInfo.length() + block.length() > 8000) break;
+                    schemaInfo.append(block);
+                }
             }
 
             // 2. Load prompt template and substitute placeholders
