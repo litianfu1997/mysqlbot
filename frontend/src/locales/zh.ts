@@ -55,7 +55,7 @@ export default {
             dbTypeOptions: {
                 postgresql: 'PostgreSQL',
                 mysql: 'MySQL'
-            }
+            },
             system: '系统设置'
         },
         llm: {

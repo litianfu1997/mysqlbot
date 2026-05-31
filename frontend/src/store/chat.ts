@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { chatApi, type ChatSession, type ChatMessage } from '@/api'
+import { chatApi, type ChatSession, type ChatMessage, type SseEvent } from '@/api'
 
 export const useChatStore = defineStore('chat', () => {
     const sessions = ref<ChatSession[]>([])
     const currentSessionId = ref<string | null>(null)
     const messages = ref<ChatMessage[]>([])
     const loading = ref(false)
+    const streamingStatus = ref<string>('')
 
     async function fetchSessions() {
         try {
@@ -48,21 +49,70 @@ export const useChatStore = defineStore('chat', () => {
         messages.value.push(userMsg)
 
         loading.value = true
+        streamingStatus.value = 'Processing...'
+
+        // Prepare a placeholder assistant message for streaming updates
+        const assistantMsg: ChatMessage = {
+            sessionId: currentSessionId.value,
+            role: 'assistant',
+            content: ''
+        }
+        messages.value.push(assistantMsg)
+
         try {
-            const res = await chatApi.sendMessage(currentSessionId.value, content)
-            // Check if message already exists (rare race condition but good to handle if backend echoes)
-            // Actually backend returns the ASSISTANT message. So we just push it.
-            messages.value.push(res.data)
+            chatApi.sendMessageStream(
+                currentSessionId.value,
+                content,
+                (event: SseEvent) => {
+                    switch (event.type) {
+                        case 'status':
+                            streamingStatus.value = event.data?.message || 'Processing...'
+                            break
+                        case 'sql_generated':
+                            assistantMsg.sqlQuery = event.data?.sql || ''
+                            if (event.data?.explanation) {
+                                assistantMsg.content = event.data.explanation
+                            }
+                            break
+                        case 'sql_executed':
+                            assistantMsg.sqlResult = JSON.stringify(event.data)
+                            break
+                        case 'suggest_questions':
+                            if (event.data) {
+                                assistantMsg.suggestQuestions = JSON.stringify(event.data)
+                            }
+                            break
+                        case 'complete':
+                            // Replace placeholder with the final message from server
+                            const finalMsg = event.data as ChatMessage
+                            if (finalMsg) {
+                                Object.assign(assistantMsg, finalMsg)
+                            }
+                            break
+                        case 'error':
+                            assistantMsg.content = event.data?.message || 'An error occurred'
+                            assistantMsg.errorMsg = event.data?.message
+                            break
+                    }
+                },
+                () => {
+                    loading.value = false
+                    streamingStatus.value = ''
+                },
+                (err) => {
+                    console.error(err)
+                    assistantMsg.content = 'Error: Failed to get response.'
+                    assistantMsg.errorMsg = String(err)
+                    loading.value = false
+                    streamingStatus.value = ''
+                }
+            )
         } catch (e) {
             console.error(e)
-            messages.value.push({
-                sessionId: currentSessionId.value,
-                role: 'assistant',
-                content: 'Error: Failed to send message.',
-                errorMsg: String(e)
-            })
-        } finally {
+            assistantMsg.content = 'Error: Failed to send message.'
+            assistantMsg.errorMsg = String(e)
             loading.value = false
+            streamingStatus.value = ''
         }
     }
 
@@ -83,7 +133,6 @@ export const useChatStore = defineStore('chat', () => {
     async function analyzeMessage(messageId: number) {
         try {
             const res = await chatApi.analyzeMessage(messageId)
-            // Update message in list
             const idx = messages.value.findIndex(m => m.id === messageId)
             if (idx !== -1) {
                 messages.value[idx] = res.data
@@ -93,5 +142,8 @@ export const useChatStore = defineStore('chat', () => {
         }
     }
 
-    return { sessions, currentSessionId, messages, loading, fetchSessions, createSession, selectSession, sendMessage, deleteSession, analyzeMessage }
+    return {
+        sessions, currentSessionId, messages, loading, streamingStatus,
+        fetchSessions, createSession, selectSession, sendMessage, deleteSession, analyzeMessage
+    }
 })

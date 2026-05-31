@@ -35,13 +35,13 @@ export interface ChatMessage {
     role: 'user' | 'assistant'
     content: string
     sqlQuery?: string
-    sqlResult?: string // JSON string containing parsed result
+    sqlResult?: string
     errorMsg?: string
     analysis?: string
     chartType?: string
     xAxis?: string
     yAxis?: string
-    suggestQuestions?: string // JSON string
+    suggestQuestions?: string
     createdAt?: string
 }
 
@@ -59,6 +59,12 @@ export interface DataSource {
     schemaSyncedAt?: string
 }
 
+// SSE stream event types
+export interface SseEvent {
+    type: 'user_message' | 'status' | 'sql_generated' | 'sql_executed' | 'suggest_questions' | 'complete' | 'error'
+    data: any
+}
+
 // APIs
 export const chatApi = {
     createSession: (dataSourceId: number, title?: string, llmConfigId?: number) => {
@@ -72,6 +78,69 @@ export const chatApi = {
     },
     sendMessage: (sessionId: string, content: string) => {
         return api.post<ChatMessage>(`/chat/sessions/${sessionId}/messages`, { content })
+    },
+    /**
+     * SSE streaming: returns an EventSource-like fetch reader.
+     * Calls onEvent for each SSE event, onDone when complete.
+     */
+    sendMessageStream: (
+        sessionId: string,
+        content: string,
+        onEvent: (event: SseEvent) => void,
+        onDone: () => void,
+        onError: (err: any) => void
+    ) => {
+        const controller = new AbortController()
+
+        fetch(`/api/chat/sessions/${sessionId}/messages/stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+            signal: controller.signal
+        }).then(async (response) => {
+            if (!response.ok) {
+                onError(new Error(`HTTP ${response.status}`))
+                return
+            }
+            const reader = response.body?.getReader()
+            if (!reader) { onError(new Error('No readable stream')); return }
+
+            const decoder = new TextDecoder()
+            let buffer = ''
+            let currentEventType = 'message'
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || ''
+
+                for (const line of lines) {
+                    if (line.startsWith('event:')) {
+                        currentEventType = line.slice(6).trim()
+                    } else if (line.startsWith('data:')) {
+                        const raw = line.slice(5).trim()
+                        try {
+                            const data = JSON.parse(raw)
+                            onEvent({ type: currentEventType as SseEvent['type'], data })
+                            if (currentEventType === 'complete' || currentEventType === 'error') {
+                                onDone()
+                                return
+                            }
+                        } catch {
+                            // skip malformed data lines
+                        }
+                    }
+                }
+            }
+            onDone()
+        }).catch((err) => {
+            if (err.name !== 'AbortError') onError(err)
+        })
+
+        return controller
     },
     analyzeMessage: (messageId: number) => {
         return api.post<ChatMessage>(`/chat/messages/${messageId}/analyze`)
@@ -87,10 +156,8 @@ export const configApi = {
     testLlmConnection: (config: any) => api.post<any>('/config/llm/test', config),
     getSqlConfig: () => api.get<any>('/config/sql'),
     getAllConfig: () => api.get<any>('/config/all'),
-    
     getWeComConfig: () => api.get<any>('/config/wecom'),
     updateWeComConfig: (config: any) => api.post<any>('/config/wecom', config),
-    
     getFeishuConfig: () => api.get<any>('/config/feishu'),
     updateFeishuConfig: (config: any) => api.post<any>('/config/feishu', config)
 }

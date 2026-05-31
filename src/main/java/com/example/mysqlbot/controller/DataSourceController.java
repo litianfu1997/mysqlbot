@@ -3,6 +3,7 @@ package com.example.mysqlbot.controller;
 import com.example.mysqlbot.model.DataSource;
 import com.example.mysqlbot.repository.DataSourceRepository;
 import com.example.mysqlbot.service.SchemaService;
+import com.example.mysqlbot.service.SqlExecuteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -10,9 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 数据源管理 API
- */
 @RestController
 @RequestMapping("/api/datasource")
 @RequiredArgsConstructor
@@ -21,6 +19,7 @@ public class DataSourceController {
 
     private final DataSourceRepository dataSourceRepository;
     private final SchemaService schemaService;
+    private final SqlExecuteService sqlExecuteService;
 
     @GetMapping
     public List<DataSource> list() {
@@ -45,32 +44,29 @@ public class DataSourceController {
             return ResponseEntity.notFound().build();
         }
         dataSource.setId(id);
+        // Evict connection pool when data source config changes
+        sqlExecuteService.evictPool(id);
         return ResponseEntity.ok(dataSourceRepository.save(dataSource));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
+        sqlExecuteService.evictPool(id);
         dataSourceRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * 测试数据源连接（无需先保存）
-     */
     @PostMapping("/test-connection")
     public ResponseEntity<Map<String, Object>> testAdHocConnection(@RequestBody DataSource dataSource) {
         try {
             boolean ok = schemaService.testConnection(dataSource);
             return ResponseEntity.ok(Map.of("success", ok,
-                    "message", ok ? "连接成功" : "连接失败，请检查配置"));
+                    "message", ok ? "Connection successful" : "Connection failed, please check config"));
         } catch (Exception e) {
-            return ResponseEntity.ok(Map.of("success", false, "message", "连接异常: " + e.getMessage()));
+            return ResponseEntity.ok(Map.of("success", false, "message", "Connection error: " + e.getMessage()));
         }
     }
 
-    /**
-     * 测试数据源连接 (通过 ID)
-     */
     @PostMapping("/{id}/test")
     public ResponseEntity<Map<String, Object>> testConnection(@PathVariable("id") Long id) {
         return dataSourceRepository.findById(id)
@@ -78,31 +74,25 @@ public class DataSourceController {
                     try {
                         boolean ok = schemaService.testConnection(ds);
                         return ResponseEntity.ok(Map.<String, Object>of("success", ok,
-                                "message", ok ? "连接成功" : "连接失败，请检查配置"));
+                                "message", ok ? "Connection successful" : "Connection failed, please check config"));
                     } catch (Exception e) {
                         return ResponseEntity.ok(Map.<String, Object>of("success", false,
-                                "message", "连接异常: " + e.getMessage()));
+                                "message", "Connection error: " + e.getMessage()));
                     }
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * 同步数据源 Schema 到向量数据库 (异步)
-     */
     @PostMapping("/{id}/sync-schema")
     public ResponseEntity<Map<String, Object>> syncSchema(@PathVariable("id") Long id) {
         try {
             schemaService.syncSchema(id);
-            return ResponseEntity.ok(Map.of("success", true, "message", "Schema 同步已在后台启动"));
+            return ResponseEntity.ok(Map.of("success", true, "message", "Schema sync started in background"));
         } catch (Exception e) {
             return ResponseEntity.ok(Map.of("success", false, "message", e.getMessage()));
         }
     }
 
-    /**
-     * 获取同步进度
-     */
     @GetMapping("/{id}/sync-progress")
     public ResponseEntity<SchemaService.SyncProgress> getSyncProgress(@PathVariable("id") Long id) {
         return ResponseEntity.ok(schemaService.getSyncProgress(id));

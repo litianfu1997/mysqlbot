@@ -84,7 +84,7 @@ export default {
             dbTypeOptions: {
                 postgresql: 'PostgreSQL',
                 mysql: 'MySQL'
-            }
+            },
             test: 'Test Connection',
             sync: 'Sync Schema',
             status: 'Status',

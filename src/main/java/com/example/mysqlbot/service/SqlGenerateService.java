@@ -2,10 +2,12 @@ package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.config.AppConfig;
 import com.example.mysqlbot.model.DataSource;
+import com.example.mysqlbot.model.SqlExample;
 import com.example.mysqlbot.model.DatabaseDialect;
 import com.example.mysqlbot.model.LlmConfig;
 import com.example.mysqlbot.model.TermGlossary;
 import com.example.mysqlbot.repository.DataSourceRepository;
+import com.example.mysqlbot.repository.SqlExampleRepository;
 import com.example.mysqlbot.repository.TermGlossaryRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -31,6 +37,7 @@ public class SqlGenerateService {
     private final AppConfig appConfig;
     private final RagService ragService;
     private final TermGlossaryRepository termGlossaryRepository;
+    private final com.example.mysqlbot.repository.SqlExampleRepository sqlExampleRepository;
     private final DataSourceRepository dataSourceRepository;
     private final LlmService llmService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
@@ -66,13 +73,13 @@ public class SqlGenerateService {
             schemaContext = ragService.buildSchemaContext(schemaDocs);
             log.debug("RAG retrieved Schema:\n{}", schemaContext);
         } else {
-            schemaContext = "(RAG disabled, no Schema indexed)";
+            schemaContext = loadFullSchema(dataSourceId);
             log.debug("RAG disabled, skipping retrieval");
         }
 
         // 2. Build context
         String termGlossary = buildTermGlossaryContext(dataSourceId);
-        String sqlExamples = ragEnabled ? buildSqlExamplesContext(question, dataSourceId) : "(RAG disabled)";
+        String sqlExamples = ragEnabled ? buildSqlExamplesContext(question, dataSourceId) : loadSqlExamples(dataSourceId);
 
         // 3. Fill prompt template with dialect-aware engine name and quoting rules
         String prompt = sqlGeneratePrompt
@@ -138,13 +145,38 @@ public class SqlGenerateService {
     private String extractJson(String response) {
         if (response == null) return null;
         String trimmed = response.trim();
-        if (trimmed.startsWith("```json")) {
-            int end = trimmed.lastIndexOf("```");
-            if (end > 7) return trimmed.substring(7, end).trim();
-        } else if (trimmed.startsWith("```")) {
-            int end = trimmed.lastIndexOf("```");
-            if (end > 3) return trimmed.substring(3, end).trim();
+
+        // Try to extract from ```json ... ``` blocks first (find the last one, which is usually the answer)
+        java.util.regex.Pattern jsonBlockPattern = java.util.regex.Pattern.compile("```(?:json)?\\s*\\n?(\\{[\\s\\S]*?\\})\\s*```");
+        java.util.regex.Matcher blockMatcher = jsonBlockPattern.matcher(trimmed);
+        String lastBlock = null;
+        while (blockMatcher.find()) {
+            lastBlock = blockMatcher.group(1).trim();
         }
+        if (lastBlock != null) return lastBlock;
+
+        // Fallback: find all top-level JSON objects by balanced brace counting
+        // Return the one that contains "success" key
+        for (int i = 0; i < trimmed.length(); i++) {
+            if (trimmed.charAt(i) == '{') {
+                int depth = 1;
+                int j = i + 1;
+                while (j < trimmed.length() && depth > 0) {
+                    char c = trimmed.charAt(j);
+                    if (c == '{') depth++;
+                    else if (c == '}') depth--;
+                    j++;
+                }
+                if (depth == 0) {
+                    String candidate = trimmed.substring(i, j);
+                    if (candidate.contains("\"success\"")) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+
+        // Last resort: first { to last }
         int start = response.indexOf('{');
         int end = response.lastIndexOf('}');
         if (start >= 0 && end > start) return response.substring(start, end + 1);
@@ -174,6 +206,47 @@ public class SqlGenerateService {
     private String buildSqlExamplesContext(String question, Long dataSourceId) {
         List<VectorStoreService.VectorSearchResult> examples = ragService.retrieveSimilarExamples(question, dataSourceId);
         return ragService.buildExamplesContext(examples);
+    }
+
+
+    private String loadFullSchema(Long dataSourceId) {
+        try {
+            DataSource ds = dataSourceRepository.findById(dataSourceId).orElse(null);
+            if (ds == null) return "(no data source found)";
+            String url = ds.getDialect().buildJdbcUrl(ds.getHost(), ds.getPort(), ds.getDbName());
+            StringBuilder sb = new StringBuilder();
+            try (Connection conn = DriverManager.getConnection(url, ds.getUsername(), ds.getPassword())) {
+                DatabaseMetaData meta = conn.getMetaData();
+                ResultSet tables = meta.getTables(null, "public", "%", new String[]{"TABLE"});
+                while (tables.next()) {
+                    String tableName = tables.getString("TABLE_NAME");
+                    sb.append("Table: ").append(tableName).append(" (\n");
+                    ResultSet cols = meta.getColumns(null, "public", tableName, null);
+                    boolean first = true;
+                    while (cols.next()) {
+                        if (!first) sb.append(",\n");
+                        sb.append("  ").append(cols.getString("COLUMN_NAME"))
+                          .append(" ").append(cols.getString("TYPE_NAME"));
+                        String comment = cols.getString("REMARKS");
+                        if (comment != null && !comment.isBlank()) sb.append(" -- ").append(comment);
+                        first = false;
+                    }
+                    sb.append("\n)\n");
+                }
+            }
+            return sb.length() > 0 ? sb.toString() : "(no tables found)";
+        } catch (Exception e) {
+            log.warn("Failed to load full schema: {}", e.getMessage());
+            return "(schema load failed: " + e.getMessage() + ")";
+        }
+    }
+
+    private String loadSqlExamples(Long dataSourceId) {
+        List<SqlExample> examples = sqlExampleRepository.findByDataSourceId(dataSourceId);
+        if (examples.isEmpty()) return "(no SQL examples)";
+        return examples.stream()
+                .map(e -> "Q: " + e.getQuestion() + "\nSQL: " + e.getSqlQuery())
+                .collect(java.util.stream.Collectors.joining("\n\n"));
     }
 
     private static String loadResource(String path) {

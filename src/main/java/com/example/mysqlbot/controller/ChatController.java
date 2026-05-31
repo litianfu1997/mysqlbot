@@ -3,16 +3,23 @@ package com.example.mysqlbot.controller;
 import com.example.mysqlbot.model.ChatMessage;
 import com.example.mysqlbot.model.ChatSession;
 import com.example.mysqlbot.service.ChatService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
- * 对话 API
+ * Chat API with SSE streaming support.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
@@ -20,33 +27,27 @@ import java.util.List;
 public class ChatController {
 
     private final ChatService chatService;
+    private final ObjectMapper objectMapper;
 
-    /**
-     * 获取所有会话列表
-     */
+    private final ExecutorService sseExecutor = Executors.newVirtualThreadPerTaskExecutor();
+
     @GetMapping("/sessions")
     public List<ChatSession> getSessions() {
         return chatService.getSessions();
     }
 
-    /**
-     * 创建新会话
-     */
     @PostMapping("/sessions")
     public ChatSession createSession(@RequestBody CreateSessionRequest request) {
         return chatService.createSession(request.getDataSourceId(), request.getTitle(), request.getLlmConfigId());
     }
 
-    /**
-     * 获取会话消息列表
-     */
     @GetMapping("/sessions/{sessionId}/messages")
     public List<ChatMessage> getMessages(@PathVariable("sessionId") String sessionId) {
         return chatService.getMessages(sessionId);
     }
 
     /**
-     * 发送消息（核心接口）
+     * Send message - synchronous endpoint (backward compatible).
      */
     @PostMapping("/sessions/{sessionId}/messages")
     public ResponseEntity<ChatMessage> sendMessage(
@@ -59,7 +60,7 @@ public class ChatController {
             ChatMessage errorMsg = ChatMessage.builder()
                     .sessionId(sessionId)
                     .role("assistant")
-                    .content("处理失败：" + e.getMessage())
+                    .content("Processing failed: [" + e.getClass().getSimpleName() + "] " + e.getMessage() + " at " + Thread.currentThread().getStackTrace()[2])
                     .errorMsg(e.getMessage())
                     .build();
             return ResponseEntity.ok(errorMsg);
@@ -67,8 +68,48 @@ public class ChatController {
     }
 
     /**
-     * 分析消息（生成图表）
+     * Send message - SSE streaming endpoint.
+     * Emits events: sql_generated, sql_executed, suggest_questions, complete.
      */
+    @PostMapping(value = "/sessions/{sessionId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter sendMessageStream(
+            @PathVariable("sessionId") String sessionId,
+            @RequestBody SendMessageRequest request) {
+
+        SseEmitter emitter = new SseEmitter(120_000L); // 2 min timeout
+
+        sseExecutor.execute(() -> {
+            try {
+                chatService.chatStream(sessionId, request.getContent(), (event) -> {
+                    try {
+                        String json = objectMapper.writeValueAsString(event.data());
+                        emitter.send(SseEmitter.event()
+                                .name(event.type())
+                                .data(json, MediaType.APPLICATION_JSON));
+                        if ("complete".equals(event.type()) || "error".equals(event.type())) {
+                            emitter.complete();
+                        }
+                    } catch (Exception e) {
+                        log.error("SSE emit failed", e);
+                        emitter.completeWithError(e);
+                    }
+                });
+            } catch (Exception e) {
+                log.error("SSE stream error", e);
+                try {
+                    String json = objectMapper.writeValueAsString(new ChatService.StreamEvent("error",
+                            java.util.Map.of("message", e.getMessage() != null ? e.getMessage() : "Unknown error")));
+                    emitter.send(SseEmitter.event().name("error").data(json, MediaType.APPLICATION_JSON));
+                } catch (Exception ignored) {}
+                emitter.completeWithError(e);
+            }
+        });
+
+        emitter.onTimeout(() -> log.warn("SSE emitter timed out for session {}", sessionId));
+        emitter.onError(e -> log.warn("SSE emitter error for session {}: {}", sessionId, e.getMessage()));
+        return emitter;
+    }
+
     @PostMapping("/messages/{messageId}/analyze")
     public ResponseEntity<ChatMessage> analyzeMessage(@PathVariable("messageId") Long messageId) {
         try {
@@ -83,9 +124,6 @@ public class ChatController {
         }
     }
 
-    /**
-     * 删除会话
-     */
     @DeleteMapping("/sessions/{sessionId}")
     public ResponseEntity<Void> deleteSession(@PathVariable("sessionId") String sessionId) {
         chatService.deleteSession(sessionId);
@@ -104,3 +142,4 @@ public class ChatController {
         private String content;
     }
 }
+

@@ -2,6 +2,9 @@ package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.model.DataSource;
 import com.example.mysqlbot.repository.DataSourceRepository;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
@@ -12,10 +15,11 @@ import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * SQL 执行服务
- * 安全地执行 LLM 生成的 SQL 并返回结果
+ * SQL execution service with connection pooling per DataSource.
+ * Uses HikariCP to maintain a pool for each target database.
  */
 @Slf4j
 @Service
@@ -23,6 +27,9 @@ import java.util.*;
 public class SqlExecuteService {
 
     private final DataSourceRepository dataSourceRepository;
+
+    // Connection pools per data source
+    private final ConcurrentHashMap<Long, HikariDataSource> connectionPools = new ConcurrentHashMap<>();
 
     @Value("${mysqlbot.sql.allow-only-select:true}")
     private boolean allowOnlySelect;
@@ -33,25 +40,58 @@ public class SqlExecuteService {
     @Value("${mysqlbot.sql.timeout-seconds:30}")
     private int timeoutSeconds;
 
+    @PreDestroy
+    public void cleanup() {
+        connectionPools.forEach((id, pool) -> {
+            if (!pool.isClosed()) pool.close();
+            log.info("Closed connection pool for dataSourceId={}", id);
+        });
+        connectionPools.clear();
+    }
+
     /**
-     * 执行 SQL 并返回结果
-     *
-     * @param sql          要执行的 SQL
-     * @param dataSourceId 目标数据源 ID
-     * @return 执行结果
+     * Get or create a connection pool for the given data source.
      */
+    private HikariDataSource getPool(DataSource ds) {
+        return connectionPools.computeIfAbsent(ds.getId(), id -> {
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(ds.buildJdbcUrl());
+            config.setUsername(ds.getUsername());
+            config.setPassword(ds.getPassword());
+            config.setMaximumPoolSize(5);
+            config.setMinimumIdle(1);
+            config.setConnectionTimeout(10000); // 10s
+            config.setIdleTimeout(300000); // 5 min
+            config.setMaxLifetime(600000); // 10 min
+            config.setPoolName("ds-" + id);
+            log.info("Created connection pool for dataSourceId={}, name={}", id, ds.getName());
+            return new HikariDataSource(config);
+        });
+    }
+
+    /**
+     * Evict connection pool when data source is updated or deleted.
+     */
+    public void evictPool(Long dataSourceId) {
+        HikariDataSource pool = connectionPools.remove(dataSourceId);
+        if (pool != null && !pool.isClosed()) {
+            pool.close();
+            log.info("Evicted connection pool for dataSourceId={}", dataSourceId);
+        }
+    }
+
     public SqlExecuteResult execute(String sql, Long dataSourceId) {
-        // 1. 安全验证
         validateSql(sql);
 
         DataSource ds = dataSourceRepository.findById(dataSourceId)
-                .orElseThrow(() -> new RuntimeException("数据源不存在: " + dataSourceId));
+                .orElseThrow(() -> new RuntimeException("Data source not found: " + dataSourceId));
 
-        log.info("执行 SQL [dataSource={}]: {}", ds.getName(), sql);
+        log.info("Executing SQL [dataSource={}]: {}", ds.getName(), sql);
 
-        // 2. 执行查询
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword());
-                java.sql.Statement stmt = conn.createStatement()) {
+        HikariDataSource pool = getPool(ds);
+
+        try (Connection conn = pool.getConnection();
+             java.sql.Statement stmt = conn.createStatement()) {
 
             stmt.setQueryTimeout(timeoutSeconds);
             stmt.setMaxRows(maxRows);
@@ -60,13 +100,11 @@ public class SqlExecuteService {
                 ResultSetMetaData metaData = rs.getMetaData();
                 int columnCount = metaData.getColumnCount();
 
-                // 提取列名
                 List<String> columns = new ArrayList<>();
                 for (int i = 1; i <= columnCount; i++) {
                     columns.add(metaData.getColumnLabel(i));
                 }
 
-                // 提取数据行
                 List<Map<String, Object>> rows = new ArrayList<>();
                 while (rs.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
@@ -77,7 +115,7 @@ public class SqlExecuteService {
                     rows.add(row);
                 }
 
-                log.info("SQL 执行成功，返回 {} 行数据", rows.size());
+                log.info("SQL executed successfully, returned {} rows", rows.size());
                 return SqlExecuteResult.builder()
                         .success(true)
                         .columns(columns)
@@ -88,56 +126,48 @@ public class SqlExecuteService {
             }
 
         } catch (SQLTimeoutException e) {
-            log.error("SQL 执行超时: {}", sql);
+            log.error("SQL execution timeout: {}", sql);
             return SqlExecuteResult.builder()
                     .success(false)
-                    .errorMessage("查询超时（超过 " + timeoutSeconds + " 秒），请优化查询条件")
+                    .errorMessage("Query timeout (exceeded " + timeoutSeconds + "s), please optimize query")
                     .sql(sql)
                     .build();
         } catch (SQLException e) {
-            log.error("SQL 执行失败: {}, 错误: {}", sql, e.getMessage());
+            log.error("SQL execution failed: {}, error: {}", sql, e.getMessage());
             return SqlExecuteResult.builder()
                     .success(false)
-                    .errorMessage("SQL 执行失败: " + e.getMessage())
+                    .errorMessage("SQL execution failed: " + e.getMessage())
                     .sql(sql)
                     .build();
         }
     }
 
-    /**
-     * SQL 安全验证
-     * 使用 JSqlParser 解析 SQL，确保只允许 SELECT 语句
-     */
     private void validateSql(String sql) {
         if (sql == null || sql.trim().isEmpty()) {
-            throw new IllegalArgumentException("SQL 不能为空");
+            throw new IllegalArgumentException("SQL cannot be empty");
         }
 
         if (allowOnlySelect) {
             try {
                 Statement statement = CCJSqlParserUtil.parse(sql);
                 if (!(statement instanceof Select)) {
-                    throw new SecurityException("安全限制：只允许执行 SELECT 查询，不允许执行: " + statement.getClass().getSimpleName());
+                    throw new SecurityException("Security restriction: only SELECT queries allowed, not: " + statement.getClass().getSimpleName());
                 }
             } catch (SecurityException e) {
                 throw e;
             } catch (Exception e) {
-                // 解析失败时，做简单的关键字检查
                 String upperSql = sql.trim().toUpperCase();
                 List<String> dangerousKeywords = List.of("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
                         "TRUNCATE", "EXEC", "EXECUTE");
                 for (String keyword : dangerousKeywords) {
                     if (upperSql.contains(keyword)) {
-                        throw new SecurityException("安全限制：SQL 包含危险关键字: " + keyword);
+                        throw new SecurityException("Security restriction: SQL contains dangerous keyword " + keyword);
                     }
                 }
             }
         }
     }
 
-    /**
-     * SQL 执行结果
-     */
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor

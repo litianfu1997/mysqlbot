@@ -9,12 +9,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 智谱 embedding-3 嵌入服务
- * 使用 zai-sdk 调用智谱 embedding-3 API 生成向量
+ * Embedding service with result caching.
+ * Uses zai-sdk to call embedding API, caches results to avoid duplicate calls.
  */
 @Slf4j
 @Service
@@ -23,56 +25,118 @@ public class ZhipuEmbeddingService {
 
     private final AppConfig appConfig;
 
-    /** embedding-3 默认维度 (2048 最高精度，1024 均衡，512 轻量) */
     private static final int DIMENSIONS = 1024;
+    private static final int CACHE_MAX_SIZE = 500;
 
     private volatile ZhipuAiClient client;
+
+    // Simple LRU cache for embedding results
+    private final Map<String, float[]> embeddingCache = new LinkedHashMap<String, float[]>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, float[]> eldest) {
+            return size() > CACHE_MAX_SIZE;
+        }
+    };
 
     @PostConstruct
     public void init() {
         buildClient();
     }
 
-    /** 支持在运行时重新初始化客户端（如 API Key 变更后） */
     public synchronized void buildClient() {
         String apiKey = appConfig.getLlm().getApiKey();
+        String baseUrl = appConfig.getLlm().getBaseUrl();
         if (apiKey == null || apiKey.isBlank() || "your-api-key".equals(apiKey)) {
-            log.warn("ZhipuEmbeddingService: API Key 未配置，将在使用时再初始化");
+            log.warn("ZhipuEmbeddingService: API Key not configured, will initialize on use");
+            this.client = null;
+            return;
+        }
+        // Only use ZhipuAiClient when base URL is Zhipu
+        boolean isZhipu = baseUrl != null && baseUrl.contains("bigmodel.cn");
+        if (!isZhipu) {
+            log.info("ZhipuEmbeddingService: skipping Zhipu client init (non-Zhipu base URL: {})", baseUrl);
             this.client = null;
             return;
         }
         this.client = ZhipuAiClient.builder().ofZHIPU()
                 .apiKey(apiKey)
                 .build();
-        log.info("ZhipuEmbeddingService: 客户端初始化完成");
+        log.info("ZhipuEmbeddingService: client initialized");
     }
 
     /**
-     * 对单条文本生成嵌入向量
-     *
-     * @param text 输入文本
-     * @return float[] 向量（维度 = DIMENSIONS）
+     * Embed a single text with caching.
      */
     public float[] embed(String text) {
-        return embedBatch(List.of(text)).get(0);
+        // Check cache first
+        synchronized (embeddingCache) {
+            float[] cached = embeddingCache.get(text);
+            if (cached != null) {
+                log.debug("Embedding cache hit for text ({} chars)", text.length());
+                return cached;
+            }
+        }
+
+        float[] result = embedBatch(List.of(text)).get(0);
+
+        // Store in cache
+        synchronized (embeddingCache) {
+            embeddingCache.put(text, result);
+        }
+
+        return result;
     }
 
     /**
-     * 批量生成嵌入向量（单次最多 64 条）
-     *
-     * @param texts 文本列表
-     * @return 向量列表，顺序与输入一致
+     * Batch embed with caching. Checks cache per-item first.
      */
     public List<float[]> embedBatch(List<String> texts) {
         ensureClient();
 
-        // 按批次处理，每批最多 64 条
+        // Check which texts need embedding
+        java.util.List<Integer> uncachedIndices = new java.util.ArrayList<>();
+        java.util.List<String> uncachedTexts = new java.util.ArrayList<>();
+        java.util.Map<Integer, float[]> cachedResults = new java.util.LinkedHashMap<>();
+
+        synchronized (embeddingCache) {
+            for (int i = 0; i < texts.size(); i++) {
+                float[] cached = embeddingCache.get(texts.get(i));
+                if (cached != null) {
+                    cachedResults.put(i, cached);
+                } else {
+                    uncachedIndices.add(i);
+                    uncachedTexts.add(texts.get(i));
+                }
+            }
+        }
+
+        // Fetch uncached embeddings in batch
+        if (!uncachedTexts.isEmpty()) {
+            List<float[]> newEmbeddings = doEmbedBatch(uncachedTexts);
+            synchronized (embeddingCache) {
+                for (int j = 0; j < uncachedTexts.size(); j++) {
+                    int origIdx = uncachedIndices.get(j);
+                    float[] emb = newEmbeddings.get(j);
+                    cachedResults.put(origIdx, emb);
+                    embeddingCache.put(uncachedTexts.get(j), emb);
+                }
+            }
+        }
+
+        // Build ordered result list
+        java.util.List<float[]> finalResults = new java.util.ArrayList<>();
+        for (int i = 0; i < texts.size(); i++) {
+            finalResults.add(cachedResults.get(i));
+        }
+        return finalResults;
+    }
+
+    private List<float[]> doEmbedBatch(List<String> texts) {
         final int BATCH_SIZE = 64;
         if (texts.size() <= BATCH_SIZE) {
             return doEmbed(texts);
         }
 
-        // 分批处理
         List<float[]> all = new java.util.ArrayList<>();
         for (int i = 0; i < texts.size(); i += BATCH_SIZE) {
             List<String> batch = texts.subList(i, Math.min(i + BATCH_SIZE, texts.size()));
@@ -90,15 +154,12 @@ public class ZhipuEmbeddingService {
 
         EmbeddingResponse response = client.embeddings().createEmbeddings(params);
 
-        // EmbeddingResponse.getData() 返回 EmbeddingResult
-        // EmbeddingResult.getData() 返回 List<Embedding>
         if (response == null || response.getData() == null
                 || response.getData().getData() == null
                 || response.getData().getData().isEmpty()) {
-            throw new RuntimeException("智谱 embedding-3 返回空结果");
+            throw new RuntimeException("Embedding API returned empty result");
         }
 
-        // 按 index 排序保证顺序与输入一致
         return response.getData().getData().stream()
                 .sorted((a, b) -> Integer.compare(a.getIndex(), b.getIndex()))
                 .map(item -> {
@@ -112,17 +173,20 @@ public class ZhipuEmbeddingService {
                 .collect(Collectors.toList());
     }
 
-    /** 获取向量维度 */
     public int getDimensions() {
         return DIMENSIONS;
     }
 
+    /** Clear the embedding cache (e.g. when switching configs). */
+    public void clearCache() {
+        synchronized (embeddingCache) {
+            embeddingCache.clear();
+        }
+        log.info("Embedding cache cleared");
+    }
+
     private void ensureClient() {
-        if (client == null) {
-            buildClient();
-        }
-        if (client == null) {
-            throw new RuntimeException("ZhipuEmbeddingService: API Key 未配置，无法调用 embedding");
-        }
+        if (client == null) buildClient();
+        if (client == null) throw new RuntimeException("Embedding service not available (requires Zhipu API key with bigmodel.cn base URL)");
     }
 }

@@ -1,7 +1,7 @@
 <template>
   <div class="chat-container">
     <el-container class="h-full">
-      <el-aside width="260px" class="bg-gray-50 border-r flex flex-col">
+      <el-aside width="260px" class="bg-gray-50 border-r flex flex-col" :class="{ 'sidebar-hidden': !sidebarVisible }">
         <!-- Sidebar -->
         <div class="p-4 h-full flex flex-col">
           <div class="text-xl font-bold mb-6 text-blue-600 flex items-center">
@@ -41,11 +41,12 @@
       
       <el-container class="h-full relative bg-white">
           <el-header height="60px" class="border-b bg-white flex items-center justify-between px-6 shadow-sm z-10">
-             <div class="flex items-center">
+             <div class="flex items-center gap-3">
+                 <el-button class="md:hidden" :icon="sidebarVisible ? 'DArrowLeft' : 'Menu'" circle size="small" @click="sidebarVisible = !sidebarVisible" />
                  <div class="font-medium text-gray-700 text-lg">{{ currentSessionTitle }}</div>
              </div>
              <div class="flex items-center gap-3">
-               <!-- LLM配置切换下拉 -->
+               <!-- LLM閰嶇疆鍒囨崲涓嬫媺 -->
                <el-dropdown @command="switchLlmConfig" trigger="click">
                  <div class="llm-badge">
                    <el-icon class="mr-1"><DataAnalysis /></el-icon>
@@ -69,7 +70,7 @@
                    </el-dropdown-menu>
                  </template>
                </el-dropdown>
-               <!-- 数据源切换下拉 -->
+               <!-- 鏁版嵁婧愬垏鎹笅鎷?-->
                <el-dropdown @command="switchDataSource" trigger="click">
                  <div class="datasource-badge">
                    <span class="ds-dot"></span>
@@ -136,7 +137,7 @@
                  />
                  
                  <div v-if="chatStore.loading" class="loading-indicator">
-                    <el-icon class="is-loading mr-2"><Loading /></el-icon> {{ t('chat.analyzing') }}
+                    <el-icon class="is-loading mr-2"><Loading /></el-icon> {{ chatStore.streamingStatus || t('chat.analyzing') }}
                  </div>
             </div>
             
@@ -216,6 +217,7 @@ const { t } = useI18n()
 const chatStore = useChatStore()
 const input = ref('')
 const scrollRef = ref<HTMLElement | null>(null)
+const sidebarVisible = ref(true)
 const settingsDialogRef = ref<InstanceType<typeof SettingsDialog> | null>(null)
 
 // Data Source Selection
@@ -296,22 +298,22 @@ async function switchDataSource(command: number | string) {
     const dsId = command as number
     if (dsId === currentSessionDataSourceId.value) return
 
-    // 找到当前会话
+    // 鎵惧埌褰撳墠浼氳瘽
     const session = chatStore.sessions.find(s => s.id === chatStore.currentSessionId)
     if (!session) {
-        // 没有活跃会话，直接用该数据源创建新会话
+        // 娌℃湁娲昏穬浼氳瘽锛岀洿鎺ョ敤璇ユ暟鎹簮鍒涘缓鏂颁細璇?
         await chatStore.createSession(dsId, undefined, selectedLlmConfigId.value)
-        ElMessage.success('已切换数据源并创建新对话')
+        ElMessage.success('宸插垏鎹㈡暟鎹簮骞跺垱寤烘柊瀵硅瘽')
         return
     }
 
-    // 有活跃会话，询问用户是否新建对话
+    // 鏈夋椿璺冧細璇濓紝璇㈤棶鐢ㄦ埛鏄惁鏂板缓瀵硅瘽
     try {
         await chatStore.createSession(dsId, `New Chat - ${dataSources.value.find(d => d.id === dsId)?.name}`, selectedLlmConfigId.value)
         const dsName = dataSources.value.find(d => d.id === dsId)?.name
-        ElMessage.success(`已切换到数据源：${dsName}`)
+        ElMessage.success(`宸插垏鎹㈠埌鏁版嵁婧愶細${dsName}`)
     } catch(e) {
-        ElMessage.error('切换数据源失败')
+        ElMessage.error('Failed to switch data source')
     }
 }
 
@@ -323,7 +325,7 @@ async function switchLlmConfig(command: number | string) {
     const configId = command as number
     selectedLlmConfigId.value = configId
     const config = llmConfigs.value.find(c => c.id === configId)
-    ElMessage.success(`已切换LLM配置：${config?.name || 'Default'}`)
+    ElMessage.success(`宸插垏鎹LM閰嶇疆锛?{config?.name || 'Default'}`)
 }
 
 function createNewSession() {
@@ -517,132 +519,8 @@ watch(() => chatStore.messages.length, () => {
     background-color: rgba(156, 163, 175, 0.5);
 }
 
-/* Tailwind Utilities simulation */
-.w-full { width: 100%; }
-.h-full { height: 100%; }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.justify-between { justify-content: space-between; }
-.items-center { align-items: center; }
-.mr-1 { margin-right: 0.25rem; }
-.mr-2 { margin-right: 0.5rem; }
-.mb-1 { margin-bottom: 0.25rem; }
-.mb-2 { margin-bottom: 0.5rem; }
-.mb-4 { margin-bottom: 1rem; }
-.mb-6 { margin-bottom: 1.5rem; }
-.mb-10 { margin-bottom: 2.5rem; }
-.mt-4 { margin-top: 1rem; }
-.p-0 { padding: 0; }
-.p-4 { padding: 1rem; }
-.p-6 { padding: 1.5rem; }
-.pr-2 { padding-right: 0.5rem; }
-.px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
-.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
-.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
-.pb-32 { padding-bottom: 8rem; }
-.pt-4 { padding-top: 1rem; }
-.bg-gray-50 { background-color: #f9fafb; }
-.bg-white { background-color: white; }
-.bg-gray-100 { background-color: #f3f4f6; }
-.bg-green-500 { background-color: #22c55e; }
-.border-r { border-right: 1px solid #e5e7eb; }
-.border-b { border-bottom: 1px solid #e5e7eb; }
-.border-t { border-top: 1px solid #e5e7eb; }
-.text-xl { font-size: 1.25rem; line-height: 1.75rem; }
-.text-2xl { font-size: 1.5rem; line-height: 2rem; }
-.text-5xl { font-size: 3rem; line-height: 1; }
-.font-bold { font-weight: 700; }
-.font-semibold { font-weight: 600; }
-.font-medium { font-weight: 500; }
-.text-blue-600 { color: #2563eb; }
-.text-blue-200 { color: #bfdbfe; }
-.text-gray-400 { color: #9ca3af; }
-.text-gray-500 { color: #6b7280; }
-.text-gray-600 { color: #4b5563; }
-.text-gray-700 { color: #374151; }
-.text-xs { font-size: 0.75rem; line-height: 1rem; }
-.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
-.text-lg { font-size: 1.125rem; line-height: 1.75rem; }
-.text-center { text-align: center; }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.relative { position: relative; }
-.absolute { position: absolute; }
-.max-w-4xl { max-width: 56rem; }
-.max-w-2xl { max-width: 42rem; }
-.max-w-md { max-width: 28rem; }
-.mx-auto { margin-left: auto; margin-right: auto; }
-.grid { display: grid; }
-.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.gap-4 { gap: 1rem; }
-.flex-1 { flex: 1 1 0%; }
-.overflow-y-auto { overflow-y: auto; }
-.rounded-full { border-radius: 9999px; }
-.shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-.shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
-.z-10 { z-index: 10; }
 
-/* 数据源切换按钮 */
-.datasource-badge {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 14px;
-    border-radius: 20px;
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    cursor: pointer;
-    font-size: 13px;
-    color: #374151;
-    transition: all 0.2s;
-    user-select: none;
-}
-.datasource-badge:hover {
-    background: #e0e7ff;
-    border-color: #a5b4fc;
-    color: #3730a3;
-}
-.datasource-badge:focus-visible {
-    outline: none;
-}
-.ds-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: #22c55e;
-    flex-shrink: 0;
-}
-.arrow-icon {
-    font-size: 11px;
-    color: #9ca3af;
-}
-
-/* LLM配置切换按钮 */
-.llm-badge {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 14px;
-    border-radius: 20px;
-    background: #fef3c7;
-    border: 1px solid #fcd34d;
-    cursor: pointer;
-    font-size: 13px;
-    color: #92400e;
-    transition: all 0.2s;
-    user-select: none;
-}
-.llm-badge:hover {
-    background: #fde68a;
-    border-color: #f59e0b;
-    color: #78350f;
-}
-.llm-badge:focus-visible {
-    outline: none;
-}
-
-.gap-3 { gap: 0.75rem; }
-
-/* 设置按钮 */
+/* 璁剧疆鎸夐挳 */
 .settings-btn {
     margin-top: 1rem;
     padding: 8px 12px;
@@ -675,4 +553,25 @@ watch(() => chatStore.messages.length, () => {
     to   { transform: rotate(360deg); }
 }
 
+/* Responsive sidebar */
+@@media (max-width: 768px) {
+  .sidebar-hidden {
+    display: none !important;
+  }
+  .chat-container .el-aside {
+    position: fixed;
+    z-index: 100;
+    height: 100vh;
+  }
+  .input-area {
+    padding: 12px !important;
+  }
+  .suggestion-card {
+    padding: 12px;
+  }
+}
 </style>
+
+
+
+

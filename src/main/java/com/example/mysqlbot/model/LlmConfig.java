@@ -32,7 +32,7 @@ public class LlmConfig {
     @Column(name = "api_key", nullable = false, length = 500)
     private String apiKey;
 
-    @Column(name = "model_map", columnDefinition = "JSON")
+    @Column(name = "model_map", columnDefinition = "TEXT")
     @Convert(converter = ModelMapConverter.class)
     private Map<String, String> modelMap = new HashMap<>();
 
@@ -100,3 +100,4 @@ public class LlmConfig {
         }
     }
 }
+

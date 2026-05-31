@@ -15,7 +15,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
     public OpenAiCompatibleProvider(String baseUrl, String apiKey, String defaultModel) {
         String effectiveBaseUrl = (baseUrl != null && !baseUrl.isBlank()) ? baseUrl : "https://api.openai.com/v1";
         this.util = new OpenAiLlmUtil(effectiveBaseUrl, apiKey, defaultModel);
-        log.info("OpenAiCompatibleProvider: 客户端已初始化, baseUrl={}", effectiveBaseUrl);
+        log.info("OpenAiCompatibleProvider: client initialized baseUrl={}", effectiveBaseUrl);
     }
 
     @Override
@@ -25,8 +25,13 @@ public class OpenAiCompatibleProvider implements LlmProvider {
             messages.add(Map.of("role", "system", "content", systemPrompt));
         }
         messages.add(Map.of("role", "user", "content", userMessage));
-
         log.debug("OpenAiCompatibleProvider chat: model={}, temperature={}", modelName, temperature);
+        return util.chat(messages, temperature, modelName);
+    }
+
+    @Override
+    public String chatWithMessages(List<Map<String, String>> messages, double temperature, String modelName) {
+        log.debug("OpenAiCompatibleProvider chatWithMessages: model={}, messages={}", modelName, messages.size());
         return util.chat(messages, temperature, modelName);
     }
 }
