@@ -1,6 +1,7 @@
 package com.example.mysqlbot.service.llm;
 
 import com.example.mysqlbot.util.OpenAiLlmUtil;
+import com.example.mysqlbot.util.OpenAiLlmUtil.ChatResult;
 
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,17 @@ public interface LlmProvider {
         String result = chatWithMessages(messages, temperature, modelName);
         callback.onToken("content", result);
         return result;
+    }
+
+    /**
+     * Chat with tools/function calling support.
+     * Returns a structured result containing content and tool calls.
+     */
+    default ChatResult chatWithMessagesAndTools(
+            List<Map<String, Object>> messages,
+            List<Map<String, Object>> tools,
+            double temperature, String modelName) {
+        throw new UnsupportedOperationException("chatWithMessagesAndTools not implemented");
     }
 
     default void close() {}

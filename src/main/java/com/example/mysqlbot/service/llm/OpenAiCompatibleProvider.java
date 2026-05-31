@@ -1,6 +1,7 @@
 package com.example.mysqlbot.service.llm;
 
 import com.example.mysqlbot.util.OpenAiLlmUtil;
+import com.example.mysqlbot.util.OpenAiLlmUtil.ChatResult;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -40,5 +41,14 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                                          String modelName, OpenAiLlmUtil.StreamCallback callback) {
         log.debug("OpenAiCompatibleProvider chatStreamWithMessages: model={}, messages={}", modelName, messages.size());
         return util.chatStream(messages, temperature, modelName, callback);
+    }
+
+    @Override
+    public ChatResult chatWithMessagesAndTools(
+            List<Map<String, Object>> messages,
+            List<Map<String, Object>> tools,
+            double temperature, String modelName) {
+        log.debug("OpenAiCompatibleProvider chatWithMessagesAndTools: model={}, tools={}", modelName, tools != null ? tools.size() : 0);
+        return util.chatWithMessagesAndTools(messages, temperature, modelName, tools);
     }
 }

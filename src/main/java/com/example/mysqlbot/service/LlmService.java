@@ -7,6 +7,7 @@ import com.example.mysqlbot.service.llm.LlmProvider;
 import com.example.mysqlbot.service.llm.OpenAiCompatibleProvider;
 import com.example.mysqlbot.service.llm.ZhipuProvider;
 import com.example.mysqlbot.util.OpenAiLlmUtil;
+import com.example.mysqlbot.util.OpenAiLlmUtil.ChatResult;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -202,6 +203,29 @@ public class LlmService {
             }
         }
         return appConfig.getLlm().getReasoningModel();
+    }
+
+    /**
+     * Chat with tools/function calling support.
+     * Returns a structured result containing content and tool calls.
+     */
+    public ChatResult chatWithMessagesAndTools(
+            List<Map<String, Object>> messages,
+            List<Map<String, Object>> tools,
+            Double temperature,
+            LlmConfig config) {
+        if (config != null) {
+            LlmProvider provider = providerCache.computeIfAbsent(config.getId(), k -> createProvider(config));
+            String modelName = resolveModelName(config);
+            double temp = (temperature != null) ? temperature : config.getTemperature().doubleValue();
+            return provider.chatWithMessagesAndTools(messages, tools, temp, modelName);
+        } else {
+            LlmProvider provider = providerCache.computeIfAbsent(GLOBAL_CONFIG_KEY, k -> createProviderFromAppConfig());
+            AppConfig.LlmConfig llm = appConfig.getLlm();
+            String modelName = llm.getModelMap().getOrDefault(llm.getDefaultModel(), llm.getDefaultModel());
+            double temp = (temperature != null) ? temperature : llm.getTemperature();
+            return provider.chatWithMessagesAndTools(messages, tools, temp, modelName);
+        }
     }
 
     private boolean isZhipuUrl(String baseUrl) {

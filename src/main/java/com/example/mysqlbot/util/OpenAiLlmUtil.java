@@ -90,6 +90,24 @@ public class OpenAiLlmUtil {
     }
 
     /**
+     * Chat with tools/function calling support.
+     * Returns a structured result containing content and tool calls.
+     * Supports messages with tool results (List<Map<String, Object>>).
+     */
+    public ChatResult chatWithMessagesAndTools(List<Map<String, Object>> messages, double temperature,
+                                                String modelOverride, List<Map<String, Object>> tools) {
+        String effectiveModel = (modelOverride != null && !modelOverride.isBlank()) ? modelOverride : this.model;
+        ChatRequest request = new ChatRequest();
+        request.setModel(effectiveModel);
+        request.setTemperature(temperature);
+        request.setMessages(messages);
+        request.setTools(tools);
+
+        log.debug("OpenAiLlmUtil request: model={}, messages={}, tools={}", effectiveModel, messages.size(), tools != null ? tools.size() : 0);
+        return executeWithRetry(request);
+    }
+
+    /**
      * Full chat request with all options.
      */
     public String chat(List<Map<String, String>> messages, double temperature, Integer maxTokens, boolean thinking) {
@@ -282,7 +300,7 @@ public class OpenAiLlmUtil {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ChatRequest {
         private String model;
-        private List<Map<String, String>> messages;
+        private Object messages; // Accept both List<Map<String, String>> and List<Map<String, Object>>
         private double temperature = 0.1;
         @JsonProperty("max_tokens")
         private Integer maxTokens;
