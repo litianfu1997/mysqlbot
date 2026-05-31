@@ -51,7 +51,7 @@ public class TableRelation {
 
     @Column(name = "is_active")
     @Builder.Default
-    private Short isActive = 1;
+    private Integer isActive = 1;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
