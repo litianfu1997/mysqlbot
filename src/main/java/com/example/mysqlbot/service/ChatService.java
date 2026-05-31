@@ -43,8 +43,6 @@ public class ChatService {
     private final DataAnalysisService dataAnalysisService;
     private final SuggestQuestionService suggestQuestionService;
     private final SqlPermissionService sqlPermissionService;
-    private final RagService ragService;
-    private final VectorStoreService vectorStoreService;
     private final LlmConfigRepository llmConfigRepository;
     private final DataSourceRepository dataSourceRepository;
     private final ObjectMapper objectMapper;
@@ -99,14 +97,11 @@ public class ChatService {
         SqlGenerateService.SqlGenerateResult generateResult = null;
         SqlExecuteService.SqlExecuteResult executeResult = null;
         String lastErrorMsg = null;
-        Set<String> availableTables = null;  // 新增：本轮 schema 上下文中的可用表
-        int supplementCount = 0;  // 新增：补检次数计数
 
-        int maxRetry = sqlGenerateService.getMaxRetry();  // 新增：从配置读取
+        int maxRetry = sqlGenerateService.getMaxRetry();
         for (int i = 0; i < maxRetry; i++) {
             if (i > 0) {
                 log.info("SQL execution failed, retry #{}: {}", i, lastErrorMsg);
-                // Append the failed assistant turn + user error-correction request to the in-memory list
                 ChatMessage failedAssistant = ChatMessage.builder()
                         .role("assistant")
                         .content(generateResult != null ? generateResult.getExplanation() : "")
@@ -122,31 +117,6 @@ public class ChatService {
 
             generateResult = sqlGenerateService.generate(userQuestion, session.getDataSourceId(), conversation, llmConfig);
             if (!generateResult.isSuccess() || generateResult.getSql() == null) break;
-
-            // 新增：tables 校验与补检
-            if (generateResult.getTables() != null && !generateResult.getTables().isEmpty() && supplementCount < 3) {
-                if (availableTables == null) {
-                    availableTables = fetchAvailableTables(session.getDataSourceId());
-                }
-                Set<String> requestedTables = new LinkedHashSet<>(generateResult.getTables());
-                Set<String> missingTables = new LinkedHashSet<>(requestedTables);
-                missingTables.removeAll(availableTables);
-                if (!missingTables.isEmpty()) {
-                    log.info("LLM 引用了上下文外的表: {}，触发补检", missingTables);
-                    // 补检：加载缺失表的 schema 并追加到下一轮对话
-                    List<VectorStoreService.VectorSearchResult> missingDocs =
-                            vectorStoreService.loadSchemaByTableNames(session.getDataSourceId(), new ArrayList<>(missingTables));
-                    if (!missingDocs.isEmpty()) {
-                        String missingSchema = ragService.buildSchemaContext(missingDocs);
-                        ChatMessage tableSupplementMessage = ChatMessage.builder()
-                                .role("user")
-                                .content("补充表结构信息：\n" + missingSchema + "\n请基于完整的表结构重新生成 SQL。")
-                                .build();
-                        conversation.add(tableSupplementMessage);
-                        supplementCount++;
-                    }
-                }
-            }
 
             String finalSql = applyPermission(generateResult.getSql(), session.getDataSourceId(), llmConfig);
             executeResult = sqlExecuteService.execute(finalSql, session.getDataSourceId());
@@ -195,14 +165,11 @@ public class ChatService {
         SqlGenerateService.SqlGenerateResult generateResult = null;
         SqlExecuteService.SqlExecuteResult executeResult = null;
         String lastErrorMsg = null;
-        Set<String> availableTables = null;  // 新增：本轮 schema 上下文中的可用表
-        int supplementCount = 0;  // 新增：补检次数计数
 
-        int maxRetry = sqlGenerateService.getMaxRetry();  // 新增：从配置读取
+        int maxRetry = sqlGenerateService.getMaxRetry();
         for (int i = 0; i < maxRetry; i++) {
             if (i > 0) {
                 log.info("SQL execution failed, retry #{}: {}", i, lastErrorMsg);
-                // Append failed assistant turn + user error-correction request (in-memory only)
                 ChatMessage failedAssistant = ChatMessage.builder()
                         .role("assistant")
                         .content(generateResult != null ? generateResult.getExplanation() : "")
@@ -217,7 +184,6 @@ public class ChatService {
                 progress.accept("SQL 执行失败，正在第 " + (i + 1) + " 次修正...");
             }
 
-            // Use streaming LLM call - forward tokens to the frontend
             progress.accept("正在调用模型生成 SQL...");
             generateResult = sqlGenerateService.generateStream(
                     userQuestion, session.getDataSourceId(), conversation, llmConfig, thinking,
@@ -230,31 +196,6 @@ public class ChatService {
             );
 
             if (!generateResult.isSuccess() || generateResult.getSql() == null) break;
-
-            // 新增：tables 校验与补检
-            if (generateResult.getTables() != null && !generateResult.getTables().isEmpty() && supplementCount < 3) {
-                if (availableTables == null) {
-                    availableTables = fetchAvailableTables(session.getDataSourceId());
-                }
-                Set<String> requestedTables = new LinkedHashSet<>(generateResult.getTables());
-                Set<String> missingTables = new LinkedHashSet<>(requestedTables);
-                missingTables.removeAll(availableTables);
-                if (!missingTables.isEmpty()) {
-                    log.info("LLM 引用了上下文外的表: {}，触发补检", missingTables);
-                    // 补检：加载缺失表的 schema 并追加到下一轮对话
-                    List<VectorStoreService.VectorSearchResult> missingDocs =
-                            vectorStoreService.loadSchemaByTableNames(session.getDataSourceId(), new ArrayList<>(missingTables));
-                    if (!missingDocs.isEmpty()) {
-                        String missingSchema = ragService.buildSchemaContext(missingDocs);
-                        ChatMessage tableSupplementMessage = ChatMessage.builder()
-                                .role("user")
-                                .content("补充表结构信息：\n" + missingSchema + "\n请基于完整的表结构重新生成 SQL。")
-                                .build();
-                        conversation.add(tableSupplementMessage);
-                        supplementCount++;
-                    }
-                }
-            }
 
             progress.accept("SQL 已生成，正在进行权限规则和安全校验...");
             emitter.accept(new StreamEvent("sql_generated", Map.of(

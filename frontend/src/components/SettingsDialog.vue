@@ -466,8 +466,7 @@ const calculatePercentage = (progress: any) => {
 
 const getStatusLabel = (progress: any) => {
   if (!progress) return 'Preparing...'
-  if (progress.status === 'extracting') return 'Extracting schema...'
-  if (progress.status === 'embedding') return 'Processing embeddings...'
+  if (progress.status === 'extracting') return 'Extracting schema & inferring relations...'
   if (progress.status === 'done') return 'Sync complete'
   if (progress.status === 'error') return 'Sync failed'
   return 'Processing...'
@@ -620,7 +619,6 @@ async function deleteRelation(row: any) {
 }
 .sync-state-text { font-weight: 600; }
 .sync-state-text.extracting { color: var(--accent-warning); }
-.sync-state-text.embedding { color: var(--brand-500); }
 .sync-state-text.done { color: var(--accent-success); }
 .sync-state-text.error { color: var(--accent-error); }
 

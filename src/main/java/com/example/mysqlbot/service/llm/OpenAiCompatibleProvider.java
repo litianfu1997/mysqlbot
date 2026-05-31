@@ -47,8 +47,17 @@ public class OpenAiCompatibleProvider implements LlmProvider {
     public ChatResult chatWithMessagesAndTools(
             List<Map<String, Object>> messages,
             List<Map<String, Object>> tools,
-            double temperature, String modelName) {
-        log.debug("OpenAiCompatibleProvider chatWithMessagesAndTools: model={}, tools={}", modelName, tools != null ? tools.size() : 0);
-        return util.chatWithMessagesAndTools(messages, temperature, modelName, tools);
+            double temperature, String modelName, String toolChoice) {
+        log.debug("OpenAiCompatibleProvider chatWithMessagesAndTools: model={}, tools={}, toolChoice={}", modelName, tools != null ? tools.size() : 0, toolChoice);
+        return util.chatWithMessagesAndTools(messages, temperature, modelName, tools, toolChoice);
+    }
+
+    @Override
+    public String chatStreamObjectMessages(
+            List<Map<String, Object>> messages,
+            double temperature, String modelName,
+            OpenAiLlmUtil.StreamCallback callback) {
+        log.debug("OpenAiCompatibleProvider chatStreamObjectMessages: model={}, messages={}", modelName, messages.size());
+        return util.chatStreamObjectMessages(messages, temperature, modelName, callback);
     }
 }

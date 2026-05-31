@@ -41,7 +41,28 @@ public interface LlmProvider {
             List<Map<String, Object>> messages,
             List<Map<String, Object>> tools,
             double temperature, String modelName) {
+        return chatWithMessagesAndTools(messages, tools, temperature, modelName, null);
+    }
+
+    /**
+     * Chat with tools and an explicit tool_choice (e.g. "none" to force a text answer).
+     */
+    default ChatResult chatWithMessagesAndTools(
+            List<Map<String, Object>> messages,
+            List<Map<String, Object>> tools,
+            double temperature, String modelName, String toolChoice) {
         throw new UnsupportedOperationException("chatWithMessagesAndTools not implemented");
+    }
+
+    /**
+     * Streaming chat using Object-typed messages (may contain tool_calls / tool-role history).
+     * Used for the final answer turn after the non-streamed tool-exploration loop.
+     */
+    default String chatStreamObjectMessages(
+            List<Map<String, Object>> messages,
+            double temperature, String modelName,
+            OpenAiLlmUtil.StreamCallback callback) {
+        throw new UnsupportedOperationException("chatStreamObjectMessages not implemented");
     }
 
     default void close() {}

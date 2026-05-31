@@ -19,9 +19,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Schema extraction and vectorization service.
- * Extracts table structure from target databases, vectorizes with embedding, and stores in pgvector.
- * Also performs two-pass relation inference after schema collection.
+ * Schema extraction and relation inference service.
+ * Extracts table structure (columns, PKs, FKs) and infers/persists table relations.
+ * Relations are consumed by the get_table_relations tool during LLM-driven SQL generation.
  */
 @Slf4j
 @Service
@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 public class SchemaService {
 
     private final DataSourceRepository dataSourceRepository;
-    private final VectorStoreService vectorStoreService;
     private final RelationInferenceService relationInferenceService;
     private final TableRelationRepository tableRelationRepository;
     private final LlmService llmService;
@@ -43,7 +42,7 @@ public class SchemaService {
         private String currentTable;
         private boolean completed;
         private String error;
-        private String status; // "extracting", "embedding", "done", "error"
+        private String status; // "extracting", "done", "error"
     }
 
     public SyncProgress getSyncProgress(Long dataSourceId) {
@@ -74,10 +73,7 @@ public class SchemaService {
         DatabaseDialect dialect = ds.getDialect();
         log.info("Starting schema sync for data source [{}] (type={})...", ds.getName(), dialect.getDisplayName());
 
-        List<String> contentList = new ArrayList<>();
-        List<Map<String, Object>> metaList = new ArrayList<>();
-
-        // Pass 1: collect TableMeta (for relation inference) alongside schema text
+        // Pass 1: collect TableMeta for relation inference
         List<RelationInferenceService.TableMeta> tableMetas = new ArrayList<>();
 
         try {
@@ -95,28 +91,10 @@ public class SchemaService {
 
                         progress.setCurrentTable(fullTableName);
 
-                        StringBuilder schemaText = new StringBuilder();
-                        schemaText.append("Table: ").append(fullTableName).append("\n");
-                        if (tableComment != null && !tableComment.isEmpty()) {
-                            schemaText.append("Description: ").append(tableComment).append("\n");
-                        }
-                        schemaText.append("Columns:\n");
-
                         List<String> columnNames = new ArrayList<>();
                         try (ResultSet columns = metaData.getColumns(ds.getDbName(), tableSchema, tableName, "%")) {
                             while (columns.next()) {
-                                String colName = columns.getString("COLUMN_NAME");
-                                String colType = columns.getString("TYPE_NAME");
-                                String colComment = columns.getString("REMARKS");
-                                String nullable = "YES".equals(columns.getString("IS_NULLABLE")) ? "nullable" : "not null";
-
-                                columnNames.add(colName);
-                                schemaText.append("  - ").append(colName)
-                                        .append(" (").append(colType).append(", ").append(nullable).append(")");
-                                if (colComment != null && !colComment.isEmpty()) {
-                                    schemaText.append(": ").append(colComment);
-                                }
-                                schemaText.append("\n");
+                                columnNames.add(columns.getString("COLUMN_NAME"));
                             }
                         }
 
@@ -126,20 +104,8 @@ public class SchemaService {
                                 primaryKeys.add(pks.getString("COLUMN_NAME"));
                             }
                         }
-                        if (!primaryKeys.isEmpty()) {
-                            schemaText.append("Primary key: ").append(String.join(", ", primaryKeys)).append("\n");
-                        }
 
-                        // Sample data (top 5 rows)
-                        schemaText.append("Sample data (top 5 rows):\n");
-                        appendSampleData(conn, schemaText, fullTableName, dialect);
-
-                        schemaText.append("\n");
-
-                        metaList.add(Map.of("tableName", fullTableName));
-                        contentList.add(schemaText.toString());
-
-                        progress.setTotalTables(contentList.size());
+                        progress.setTotalTables(tableMetas.size() + 1);
 
                         // Build TableMeta for relation inference
                         List<RelationInferenceService.ForeignKeyInfo> fkList =
@@ -155,9 +121,8 @@ public class SchemaService {
                 }
             }
 
-            if (contentList.isEmpty()) {
+            if (tableMetas.isEmpty()) {
                 log.warn("Data source [{}] has no tables", ds.getName());
-                // Even when there are no tables, clean up stale auto-inferred relations
                 tableRelationRepository.safelyDeleteByDataSourceIdAndSourceIn(
                         dataSourceId, List.of("fk", "naming", "llm"));
                 progress.setCompleted(true);
@@ -173,30 +138,13 @@ public class SchemaService {
                         dataSourceId, e.getMessage());
             }
 
-            progress.setStatus("embedding");
-            progress.setProcessedTables(0);
-
-            vectorStoreService.deleteByDataSourceAndType(dataSourceId, "schema");
-
-            int batchSize = 10;
-            for (int i = 0; i < contentList.size(); i += batchSize) {
-                int end = Math.min(i + batchSize, contentList.size());
-                List<String> subContent = contentList.subList(i, end);
-                List<Map<String, Object>> subMeta = metaList.subList(i, end);
-
-                progress.setCurrentTable("Embedding batch " + (i / batchSize + 1));
-                vectorStoreService.addDocuments(subContent, dataSourceId, "schema", subMeta);
-
-                progress.setProcessedTables(end);
-            }
-
             DataSource updatedDs = dataSourceRepository.findById(dataSourceId).orElse(ds);
             updatedDs.setSchemaSyncedAt(LocalDateTime.now());
             dataSourceRepository.save(updatedDs);
 
             progress.setCompleted(true);
             progress.setStatus("done");
-            log.info("Data source [{}] schema sync completed ({} tables)", ds.getName(), contentList.size());
+            log.info("Data source [{}] schema sync completed ({} tables, relations inferred)", ds.getName(), tableMetas.size());
 
         } catch (Exception e) {
             log.error("Schema sync failed", e);
@@ -300,55 +248,6 @@ public class SchemaService {
             return dialect.quoteQualifiedTable(tableSchema, tableName);
         }
         return tableName;
-    }
-
-    /**
-     * Query sample data from a table and append as a Markdown table to the schema text.
-     */
-    private void appendSampleData(Connection conn, StringBuilder schemaText, String fullTableName, DatabaseDialect dialect) {
-        try (java.sql.Statement stmt = conn.createStatement()) {
-            stmt.setMaxRows(5);
-            // Use quoted table name for safety
-            String quotedName = fullTableName.contains(".") ? fullTableName : dialect.quoteIdentifier(fullTableName);
-            try (ResultSet rs = stmt.executeQuery("SELECT * FROM " + quotedName)) {
-                java.sql.ResultSetMetaData rsmd = rs.getMetaData();
-                int columnCount = rsmd.getColumnCount();
-
-                List<String> headers = new ArrayList<>();
-                for (int i = 1; i <= columnCount; i++) {
-                    headers.add(rsmd.getColumnName(i));
-                }
-                schemaText.append("| ").append(String.join(" | ", headers)).append(" |\n");
-
-                List<String> separators = new ArrayList<>();
-                for (int i = 1; i <= columnCount; i++) {
-                    separators.add("---");
-                }
-                schemaText.append("| ").append(String.join(" | ", separators)).append(" |\n");
-
-                int rowCount = 0;
-                while (rs.next()) {
-                    rowCount++;
-                    List<String> rowValues = new ArrayList<>();
-                    for (int i = 1; i <= columnCount; i++) {
-                        Object val = rs.getObject(i);
-                        String valStr = (val == null) ? "NULL" : val.toString();
-                        if (valStr.length() > 50) {
-                            valStr = valStr.substring(0, 47) + "...";
-                        }
-                        valStr = valStr.replace("\n", " ").replace("\r", "").replace("|", "\\|");
-                        rowValues.add(valStr);
-                    }
-                    schemaText.append("| ").append(String.join(" | ", rowValues)).append(" |\n");
-                }
-                if (rowCount == 0) {
-                    schemaText.append("(empty table)\n");
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Cannot get sample data for table [{}]: {}", fullTableName, e.getMessage());
-            schemaText.append("(no permission or unable to fetch sample data)\n");
-        }
     }
 
     public boolean testConnection(DataSource ds) {

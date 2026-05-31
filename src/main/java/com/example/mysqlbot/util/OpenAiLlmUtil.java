@@ -96,14 +96,27 @@ public class OpenAiLlmUtil {
      */
     public ChatResult chatWithMessagesAndTools(List<Map<String, Object>> messages, double temperature,
                                                 String modelOverride, List<Map<String, Object>> tools) {
+        return chatWithMessagesAndTools(messages, temperature, modelOverride, tools, null);
+    }
+
+    /**
+     * Chat with tools/function calling support and an explicit tool_choice.
+     * Pass {@code toolChoice="none"} on the final forced turn to make the model emit a text
+     * answer instead of more tool_calls.
+     */
+    public ChatResult chatWithMessagesAndTools(List<Map<String, Object>> messages, double temperature,
+                                                String modelOverride, List<Map<String, Object>> tools,
+                                                String toolChoice) {
         String effectiveModel = (modelOverride != null && !modelOverride.isBlank()) ? modelOverride : this.model;
         ChatRequest request = new ChatRequest();
         request.setModel(effectiveModel);
         request.setTemperature(temperature);
         request.setMessages(messages);
         request.setTools(tools);
+        request.setToolChoice(toolChoice);
 
-        log.debug("OpenAiLlmUtil request: model={}, messages={}, tools={}", effectiveModel, messages.size(), tools != null ? tools.size() : 0);
+        log.debug("OpenAiLlmUtil request: model={}, messages={}, tools={}, toolChoice={}",
+                effectiveModel, messages.size(), tools != null ? tools.size() : 0, toolChoice);
         return executeWithRetry(request);
     }
 
@@ -169,7 +182,32 @@ public class OpenAiLlmUtil {
         request.setTools(tools);
 
         log.debug("OpenAiLlmUtil stream request: model={}, messages={}, tools={}", effectiveModel, messages.size(), tools != null ? tools.size() : 0);
+        return doStream(request, callback);
+    }
 
+    /**
+     * Streaming chat using Object-typed messages, so the history may contain assistant
+     * {@code tool_calls} messages and {@code tool}-role results. No tools are sent — used for the
+     * final answer turn after a (non-streamed) tool-use exploration loop.
+     */
+    public String chatStreamObjectMessages(List<Map<String, Object>> messages, double temperature,
+                                            String modelOverride, StreamCallback callback) {
+        String effectiveModel = (modelOverride != null && !modelOverride.isBlank()) ? modelOverride : this.model;
+        ChatRequest request = new ChatRequest();
+        request.setModel(effectiveModel);
+        request.setTemperature(temperature);
+        request.setMessages(messages);
+        request.setStream(true);
+
+        log.debug("OpenAiLlmUtil stream(object) request: model={}, messages={}", effectiveModel, messages.size());
+        return doStream(request, callback);
+    }
+
+    /**
+     * Shared SSE streaming core. Sends {@code request} (stream=true) and forwards
+     * thinking / content / tool_calls tokens to {@code callback}.
+     */
+    private String doStream(ChatRequest request, StreamCallback callback) {
         try {
             String body = STREAM_MAPPER.writeValueAsString(request);
             HttpRequest httpRequest = HttpRequest.newBuilder()

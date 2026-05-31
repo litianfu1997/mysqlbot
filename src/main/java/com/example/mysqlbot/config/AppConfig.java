@@ -8,7 +8,6 @@ import java.util.Map;
 
 /**
  * MySqlBot 全局系统配置
- * 可以动态管理 LLM 参数、SQL 限制、RAG 策略等
  */
 @Data
 @Component
@@ -16,7 +15,6 @@ import java.util.Map;
 public class AppConfig {
 
     private SqlConfig sql = new SqlConfig();
-    private RagConfig rag = new RagConfig();
     private LlmConfig llm = new LlmConfig();
 
     @Data
@@ -29,18 +27,6 @@ public class AppConfig {
         private int timeoutSeconds = 30;
         /** 生成失败重试次数 */
         private int maxRetry = 3;
-    }
-
-    @Data
-    public static class RagConfig {
-        /** 是否启用 RAG（关闭后跳过向量检索，直接传空 Schema 给 LLM） */
-        private boolean enabled = true;
-        /** 检索 Top K 个相关文档 */
-        private int topK = 5;
-        /** 相似度阈值 (0.0 ~ 1.0) */
-        private double similarityThreshold = 0.5;
-        /** 检索策略: simple | advanced (比如加上元数据过滤) */
-        private String strategy = "simple";
     }
 
     @Data

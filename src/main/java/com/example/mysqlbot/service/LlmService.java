@@ -214,18 +214,72 @@ public class LlmService {
             List<Map<String, Object>> tools,
             Double temperature,
             LlmConfig config) {
+        return chatWithMessagesAndTools(messages, tools, temperature, config, null);
+    }
+
+    /**
+     * Chat with tools and an explicit tool_choice (e.g. "none" to force a text answer).
+     */
+    public ChatResult chatWithMessagesAndTools(
+            List<Map<String, Object>> messages,
+            List<Map<String, Object>> tools,
+            Double temperature,
+            LlmConfig config,
+            String toolChoice) {
+        LlmProvider provider;
+        String modelName;
+        double temp;
+
         if (config != null) {
-            LlmProvider provider = providerCache.computeIfAbsent(config.getId(), k -> createProvider(config));
-            String modelName = resolveModelName(config);
-            double temp = (temperature != null) ? temperature : config.getTemperature().doubleValue();
-            return provider.chatWithMessagesAndTools(messages, tools, temp, modelName);
+            provider = providerCache.computeIfAbsent(config.getId(), k -> createProvider(config));
+            modelName = resolveModelName(config);
+            temp = (temperature != null) ? temperature : config.getTemperature().doubleValue();
         } else {
-            LlmProvider provider = providerCache.computeIfAbsent(GLOBAL_CONFIG_KEY, k -> createProviderFromAppConfig());
+            provider = providerCache.computeIfAbsent(GLOBAL_CONFIG_KEY, k -> createProviderFromAppConfig());
             AppConfig.LlmConfig llm = appConfig.getLlm();
-            String modelName = llm.getModelMap().getOrDefault(llm.getDefaultModel(), llm.getDefaultModel());
-            double temp = (temperature != null) ? temperature : llm.getTemperature();
-            return provider.chatWithMessagesAndTools(messages, tools, temp, modelName);
+            modelName = llm.getModelMap().getOrDefault(llm.getDefaultModel(), llm.getDefaultModel());
+            temp = (temperature != null) ? temperature : llm.getTemperature();
         }
+
+        if (provider instanceof ZhipuProvider) {
+            throw new UnsupportedOperationException(
+                    "当前配置的 Zhipu 模型不支持工具调用，请在设置中改用 OpenAI 兼容模型（如 DeepSeek）后重试。");
+        }
+        return provider.chatWithMessagesAndTools(messages, tools, temp, modelName, toolChoice);
+    }
+
+    /**
+     * Streaming chat using Object-typed messages — used for the final answer turn after the
+     * non-streamed tool-exploration loop.
+     */
+    public String chatStreamObjectMessages(
+            List<Map<String, Object>> messages,
+            Double temperature,
+            LlmConfig config,
+            boolean thinking,
+            OpenAiLlmUtil.StreamCallback callback) {
+        LlmProvider provider;
+        String modelName;
+        double temp;
+
+        if (config != null) {
+            provider = providerCache.computeIfAbsent(config.getId(), k -> createProvider(config));
+            modelName = thinking ? resolveReasoningModel(config) : resolveModelName(config);
+            temp = (temperature != null) ? temperature : config.getTemperature().doubleValue();
+        } else {
+            provider = providerCache.computeIfAbsent(GLOBAL_CONFIG_KEY, k -> createProviderFromAppConfig());
+            AppConfig.LlmConfig llm = appConfig.getLlm();
+            modelName = thinking ? appConfig.getLlm().getReasoningModel()
+                    : llm.getModelMap().getOrDefault(llm.getDefaultModel(), llm.getDefaultModel());
+            temp = (temperature != null) ? temperature : llm.getTemperature();
+        }
+
+        if (provider instanceof ZhipuProvider) {
+            throw new UnsupportedOperationException(
+                    "当前配置的 Zhipu 模型不支持工具调用，请在设置中改用 OpenAI 兼容模型（如 DeepSeek）后重试。");
+        }
+        log.debug("LlmService.chatStreamObjectMessages: thinking={}, model={}, messages={}", thinking, modelName, messages.size());
+        return provider.chatStreamObjectMessages(messages, temp, modelName, callback);
     }
 
     private boolean isZhipuUrl(String baseUrl) {

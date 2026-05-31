@@ -10,7 +10,7 @@ spring:
     virtual:
       enabled: true
 
-  # ===== 主数据库 (PostgreSQL - 业务表 + pgvector 同库) =====
+  # ===== 主数据库 (PostgreSQL - 业务表) =====
   datasource:
     url: jdbc:postgresql://localhost:5432/mysqlbot
     username: postgres
@@ -29,33 +29,6 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  # ===== Spring AI - LLM 配置 (OpenAI 兼容协议) =====
-  ai:
-    openai:
-      # 默认使用 DeepSeek (兼容 OpenAI 协议)
-      # 也可换成其他兼容 OpenAI 协议的厂商：
-      #   - OpenAI:   https://api.openai.com/v1             (模型: gpt-4o-mini)
-      #   - 智谱:     https://open.bigmodel.cn/api/paas/v4   (模型: glm-4)
-      #   - 通义千问: https://dashscope.aliyuncs.com/compatible-mode/v1
-      base-url: https://api.deepseek.com
-      api-key: ${DEEPSEEK_API_KEY:your_api_key_here}
-      chat:
-        options:
-          model: deepseek-v4-flash
-          temperature: 0.6
-          max-tokens: 2048
-      embedding:
-        options:
-          model: text-embedding-3-small
-
-    # ===== PgVector 向量数据库 (与主库同库) =====
-    vectorstore:
-      pgvector:
-        index-type: HNSW
-        distance-type: COSINE_DISTANCE
-        dimensions: 1536  # OpenAI text-embedding-3-small 维度
-        initialize-schema: true
-
 # ===== MySqlBot 自定义配置 =====
 mysqlbot:
   # SQL 执行安全配置
@@ -68,17 +41,11 @@ mysqlbot:
     timeout-seconds: 30
     # LLM 生成 SQL 失败后最大重试次数
     max-retry: 3
-  # RAG 检索配置
-  rag:
-    # 是否启用 RAG（关闭后直接传空 Schema 给 LLM）
-    enabled: true
-    # 检索最相关的 Schema 片段数量
-    top-k: 5
-    # 相似度阈值
-    similarity-threshold: 0.5
-
+  # LLM 工具调用配置
+  tool:
+    # Agent 工具探索最大轮次（超出后强制输出答案）
+    max-rounds: 8
 
 logging:
   level:
     com.example.mysqlbot: DEBUG
-    org.springframework.ai: INFO

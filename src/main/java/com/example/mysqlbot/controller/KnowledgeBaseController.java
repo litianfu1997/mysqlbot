@@ -18,7 +18,6 @@ public class KnowledgeBaseController {
 
     private final TermGlossaryRepository termGlossaryRepository;
     private final SqlExampleRepository sqlExampleRepository;
-    private final com.example.mysqlbot.service.RagService ragService;
 
     // ===== Term Glossary =====
 
@@ -53,10 +52,7 @@ public class KnowledgeBaseController {
 
     @PostMapping("/examples")
     public SqlExample createExample(@RequestBody SqlExample example) {
-        SqlExample saved = sqlExampleRepository.save(example);
-        // 同步到向量库
-        ragService.syncExample(saved);
-        return saved;
+        return sqlExampleRepository.save(example);
     }
 
     @DeleteMapping("/examples/{id}")
