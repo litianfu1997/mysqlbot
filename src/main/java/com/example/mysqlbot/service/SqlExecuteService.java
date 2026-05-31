@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * SQL execution service with connection pooling per DataSource.
@@ -39,6 +40,14 @@ public class SqlExecuteService {
 
     @Value("${mysqlbot.sql.timeout-seconds:30}")
     private int timeoutSeconds;
+
+    private static final Pattern[] DANGEROUS_KEYWORD_PATTERNS;
+    static {
+        List<String> keywords = List.of("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE", "EXEC", "EXECUTE");
+        DANGEROUS_KEYWORD_PATTERNS = keywords.stream()
+                .map(k -> java.util.regex.Pattern.compile("\\b" + k + "\\b", java.util.regex.Pattern.CASE_INSENSITIVE))
+                .toArray(java.util.regex.Pattern[]::new);
+    }
 
     @PreDestroy
     public void cleanup() {
@@ -157,14 +166,9 @@ public class SqlExecuteService {
                 throw e;
             } catch (Exception e) {
                 String upperSql = sql.trim().toUpperCase();
-                List<String> dangerousKeywords = List.of("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
-                        "TRUNCATE", "EXEC", "EXECUTE");
-                for (String keyword : dangerousKeywords) {
-                    // 使用单词边界匹配，避免标识符中的子串被误判
-                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\b" + keyword + "\\b");
-                    java.util.regex.Matcher matcher = pattern.matcher(upperSql);
-                    if (matcher.find()) {
-                        throw new SecurityException("Security restriction: SQL contains dangerous keyword " + keyword);
+                for (java.util.regex.Pattern pattern : DANGEROUS_KEYWORD_PATTERNS) {
+                    if (pattern.matcher(upperSql).find()) {
+                        throw new SecurityException("Security restriction: SQL contains dangerous keyword");
                     }
                 }
             }

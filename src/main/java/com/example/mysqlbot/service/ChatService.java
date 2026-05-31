@@ -100,6 +100,7 @@ public class ChatService {
         SqlExecuteService.SqlExecuteResult executeResult = null;
         String lastErrorMsg = null;
         Set<String> availableTables = null;  // 新增：本轮 schema 上下文中的可用表
+        int supplementCount = 0;  // 新增：补检次数计数
 
         int maxRetry = sqlGenerateService.getMaxRetry();  // 新增：从配置读取
         for (int i = 0; i < maxRetry; i++) {
@@ -123,7 +124,7 @@ public class ChatService {
             if (!generateResult.isSuccess() || generateResult.getSql() == null) break;
 
             // 新增：tables 校验与补检
-            if (generateResult.getTables() != null && !generateResult.getTables().isEmpty()) {
+            if (generateResult.getTables() != null && !generateResult.getTables().isEmpty() && supplementCount < 3) {
                 if (availableTables == null) {
                     availableTables = fetchAvailableTables(session.getDataSourceId());
                 }
@@ -137,11 +138,12 @@ public class ChatService {
                             vectorStoreService.loadSchemaByTableNames(session.getDataSourceId(), new ArrayList<>(missingTables));
                     if (!missingDocs.isEmpty()) {
                         String missingSchema = ragService.buildSchemaContext(missingDocs);
-                        ChatMessage 补表提示 = ChatMessage.builder()
+                        ChatMessage tableSupplementMessage = ChatMessage.builder()
                                 .role("user")
                                 .content("补充表结构信息：\n" + missingSchema + "\n请基于完整的表结构重新生成 SQL。")
                                 .build();
-                        conversation.add(补表提示);
+                        conversation.add(tableSupplementMessage);
+                        supplementCount++;
                     }
                 }
             }
@@ -194,6 +196,7 @@ public class ChatService {
         SqlExecuteService.SqlExecuteResult executeResult = null;
         String lastErrorMsg = null;
         Set<String> availableTables = null;  // 新增：本轮 schema 上下文中的可用表
+        int supplementCount = 0;  // 新增：补检次数计数
 
         int maxRetry = sqlGenerateService.getMaxRetry();  // 新增：从配置读取
         for (int i = 0; i < maxRetry; i++) {
@@ -229,7 +232,7 @@ public class ChatService {
             if (!generateResult.isSuccess() || generateResult.getSql() == null) break;
 
             // 新增：tables 校验与补检
-            if (generateResult.getTables() != null && !generateResult.getTables().isEmpty()) {
+            if (generateResult.getTables() != null && !generateResult.getTables().isEmpty() && supplementCount < 3) {
                 if (availableTables == null) {
                     availableTables = fetchAvailableTables(session.getDataSourceId());
                 }
@@ -243,11 +246,12 @@ public class ChatService {
                             vectorStoreService.loadSchemaByTableNames(session.getDataSourceId(), new ArrayList<>(missingTables));
                     if (!missingDocs.isEmpty()) {
                         String missingSchema = ragService.buildSchemaContext(missingDocs);
-                        ChatMessage 补表提示 = ChatMessage.builder()
+                        ChatMessage tableSupplementMessage = ChatMessage.builder()
                                 .role("user")
                                 .content("补充表结构信息：\n" + missingSchema + "\n请基于完整的表结构重新生成 SQL。")
                                 .build();
-                        conversation.add(补表提示);
+                        conversation.add(tableSupplementMessage);
+                        supplementCount++;
                     }
                 }
             }
