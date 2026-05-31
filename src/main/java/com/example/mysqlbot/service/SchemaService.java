@@ -234,9 +234,9 @@ public class SchemaService {
      * transaction — if saveAll throws, the delete is rolled back too.
      */
     @Transactional
-    private void inferAndSaveRelations(Long dataSourceId,
-                                       List<RelationInferenceService.TableMeta> tableMetas,
-                                       String dbEngine) {
+    void inferAndSaveRelations(Long dataSourceId,
+                               List<RelationInferenceService.TableMeta> tableMetas,
+                               String dbEngine) {
         // 1. Remove previously auto-inferred relations (fk / naming / llm); keep manual
         tableRelationRepository.safelyDeleteByDataSourceIdAndSourceIn(
                 dataSourceId, List.of("fk", "naming", "llm"));
