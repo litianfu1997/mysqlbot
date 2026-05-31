@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS chat_message (
     sql_query  TEXT,
     sql_result TEXT,
     error_msg  TEXT,
+    thinking_content TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_chat_message_session_id ON chat_message (session_id);
@@ -135,3 +136,22 @@ CREATE INDEX IF NOT EXISTS idx_vs_ds_type ON vector_store (data_source_id, doc_t
 INSERT INTO data_source (name, description, db_type, host, port, db_name, username, password)
 VALUES ('示例PostgreSQL数据源', '用于测试的 PostgreSQL 数据源', 'postgresql', 'localhost', 5432, 'postgres', 'postgres', 'postgres')
 ON CONFLICT (name) DO NOTHING;
+
+-- ===== 表间关系表（用于多表连接 JOIN 推断）=====
+CREATE TABLE IF NOT EXISTS table_relation (
+    id              BIGSERIAL PRIMARY KEY,
+    data_source_id  BIGINT NOT NULL,
+    from_table      VARCHAR(200) NOT NULL,
+    from_column     VARCHAR(200) NOT NULL,
+    to_table        VARCHAR(200) NOT NULL,
+    to_column       VARCHAR(200) NOT NULL,
+    source          VARCHAR(20) NOT NULL,   -- fk / naming / llm / manual
+    confidence      NUMERIC(3,2) DEFAULT 1.0,
+    is_active       SMALLINT DEFAULT 1,
+    created_at      TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT uk_table_relation UNIQUE (data_source_id, from_table, from_column, to_table, to_column)
+);
+CREATE INDEX IF NOT EXISTS idx_table_relation_ds ON table_relation (data_source_id);
+COMMENT ON TABLE  table_relation IS '表间关系（JOIN 依据）：外键/命名约定/LLM推断/手动声明';
+COMMENT ON COLUMN table_relation.source     IS '来源: fk=物理外键, naming=命名约定, llm=LLM推断, manual=手动声明';
+COMMENT ON COLUMN table_relation.confidence IS '置信度 0.0~1.0';
