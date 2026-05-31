@@ -53,6 +53,7 @@
         tabs: {
             llm: '大模型配置',
             database: '数据库配置',
+            relation: '表关系',
             wecom: '企业微信集成',
             feishu: '飞书集成',
             system: '系统设置'
@@ -105,6 +106,23 @@
         },
         system: {
             language: '语言设置'
+        },
+        relation: {
+            add: '添加关系',
+            edit: '编辑关系',
+            fromTable: '来源表',
+            fromColumn: '来源列',
+            toTable: '目标表',
+            toColumn: '目标列',
+            source: '来源',
+            confidence: '置信度',
+            actions: '操作',
+            sourceTypes: {
+                fk: '外键',
+                naming: '命名约定',
+                llm: 'LLM推断',
+                manual: '手动声明'
+            }
         }
     }
 }

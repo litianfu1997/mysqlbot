@@ -53,6 +53,7 @@
         tabs: {
             llm: 'LLM Config',
             database: 'Database Config',
+            relation: 'Table Relations',
             wecom: 'WeCom Integration',
             feishu: 'Feishu Integration',
             system: 'System'
@@ -105,6 +106,23 @@
         },
         system: {
             language: 'Language'
+        },
+        relation: {
+            add: 'Add Relation',
+            edit: 'Edit Relation',
+            fromTable: 'From Table',
+            fromColumn: 'From Column',
+            toTable: 'To Table',
+            toColumn: 'To Column',
+            source: 'Source',
+            confidence: 'Confidence',
+            actions: 'Actions',
+            sourceTypes: {
+                fk: 'Foreign Key',
+                naming: 'Naming Convention',
+                llm: 'LLM Inferred',
+                manual: 'Manual'
+            }
         }
     }
 }

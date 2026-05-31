@@ -86,6 +86,42 @@
         </el-table>
       </el-tab-pane>
 
+      <!-- Table Relations -->
+      <el-tab-pane :label="t('settings.tabs.relation')" name="relation">
+        <div class="tab-toolbar">
+          <el-select v-model="selectedDataSourceForRelations" :placeholder="t('settings.database.name')" @change="fetchRelations" style="width: 200px; margin-right: 12px">
+            <el-option v-for="ds in dataSources" :key="ds.id" :label="ds.name" :value="ds.id" />
+          </el-select>
+          <el-button type="primary" size="small" @click="openRelationDialog()" :disabled="!selectedDataSourceForRelations">
+            <el-icon class="mr-1"><Plus /></el-icon> {{ t('settings.relation.add') }}
+          </el-button>
+        </div>
+        <el-table :data="tableRelations" style="width: 100%" v-loading="loadingRelations" size="small" class="settings-table">
+          <el-table-column prop="fromTable" :label="t('settings.relation.fromTable')" min-width="120" />
+          <el-table-column prop="fromColumn" :label="t('settings.relation.fromColumn')" min-width="120" />
+          <el-table-column prop="toTable" :label="t('settings.relation.toTable')" min-width="120" />
+          <el-table-column prop="toColumn" :label="t('settings.relation.toColumn')" min-width="120" />
+          <el-table-column prop="source" :label="t('settings.relation.source')" width="100">
+            <template #default="scope">
+              {{ t(`settings.relation.sourceTypes.${scope.row.source}`) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="confidence" :label="t('settings.relation.confidence')" width="80" align="center">
+            <template #default="scope">
+              {{ scope.row.confidence ? scope.row.confidence.toFixed(2) : '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('settings.relation.actions')" width="160" fixed="right">
+            <template #default="scope">
+              <div class="action-group">
+                <el-button link size="small" @click="openRelationDialog(scope.row)" :disabled="scope.row.source !== 'manual'">{{ t('settings.database.edit') }}</el-button>
+                <el-button link size="small" type="danger" @click="deleteRelation(scope.row)" :disabled="scope.row.source !== 'manual'">{{ t('common.delete') }}</el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
       <!-- WeCom -->
       <el-tab-pane :label="t('settings.tabs.wecom')" name="wecom">
         <el-form label-width="140px" :model="wecomForm" v-loading="loadingWecom" class="settings-form">
@@ -225,12 +261,39 @@
         <el-button type="primary" :loading="savingDs" @click="saveDataSource">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- Relation Edit Dialog -->
+    <el-dialog
+      v-model="relationDialogVisible"
+      :title="editingRelation ? t('settings.relation.edit') : t('settings.relation.add')"
+      width="480px"
+      append-to-body
+    >
+      <el-form :model="relationForm" label-width="100px" class="settings-form">
+        <el-form-item :label="t('settings.relation.fromTable')">
+          <el-input v-model="relationForm.fromTable" placeholder="orders" />
+        </el-form-item>
+        <el-form-item :label="t('settings.relation.fromColumn')">
+          <el-input v-model="relationForm.fromColumn" placeholder="user_id" />
+        </el-form-item>
+        <el-form-item :label="t('settings.relation.toTable')">
+          <el-input v-model="relationForm.toTable" placeholder="users" />
+        </el-form-item>
+        <el-form-item :label="t('settings.relation.toColumn')">
+          <el-input v-model="relationForm.toColumn" placeholder="id" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="relationDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="savingRelation" @click="saveRelation">{{ t('common.save') }}</el-button>
+      </template>
+    </el-dialog>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { dataSourceApi, llmConfigApi, configApi, type DataSource, type LlmConfig } from '@/api'
+import { dataSourceApi, llmConfigApi, configApi, tableRelationApi, type DataSource, type LlmConfig, type TableRelation } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -276,6 +339,18 @@ const wecomForm = ref({ corpId: '', agentId: '', secret: '', token: '', encoding
 const loadingFeishu = ref(false); const savingFeishu = ref(false)
 const feishuForm = ref({ appId: '', appSecret: '', verificationToken: '', encryptKey: '', enabled: 'false' })
 
+// Table Relations
+const selectedDataSourceForRelations = ref<number | null>(null)
+const tableRelations = ref<any[]>([])
+const loadingRelations = ref(false)
+const relationDialogVisible = ref(false)
+const editingRelation = ref<any | null>(null)
+const savingRelation = ref(false)
+
+const relationForm = ref({
+  dataSourceId: 0, fromTable: '', fromColumn: '', toTable: '', toColumn: '', source: 'manual'
+})
+
 const open = () => { visible.value = true; fetchConfigs() }
 defineExpose({ open })
 
@@ -284,7 +359,7 @@ watch(() => dsForm.value.dbType, (newType) => {
   else if (newType === 'postgresql') dsForm.value.port = 5432
 })
 
-async function fetchConfigs() { fetchLlmConfigs(); fetchDataSources(); fetchWeComConfig(); fetchFeishuConfig() }
+async function fetchConfigs() { fetchLlmConfigs(); fetchDataSources(); fetchWeComConfig(); fetchFeishuConfig(); if (selectedDataSourceForRelations.value) fetchRelations() }
 
 async function fetchLlmConfigs() {
   loadingLlmConfigs.value = true
@@ -452,6 +527,38 @@ async function saveFeishuConfig() {
   try { const res = await configApi.updateFeishuConfig(feishuForm.value); if (res.data?.success) ElMessage.success(res.data.message); else ElMessage.error(res.data?.message || 'Failed') }
   catch (e: any) { ElMessage.error(e.message || 'Failed') }
   finally { savingFeishu.value = false }
+}
+
+async function fetchRelations() {
+  if (!selectedDataSourceForRelations.value) return
+  loadingRelations.value = true
+  try { const res = await tableRelationApi.listByDataSource(selectedDataSourceForRelations.value); tableRelations.value = res.data }
+  catch { ElMessage.error('Failed to load relations') }
+  finally { loadingRelations.value = false }
+}
+
+function openRelationDialog(row?: any) {
+  if (row) { editingRelation.value = row; relationForm.value = { ...row } }
+  else {
+    editingRelation.value = null
+    relationForm.value = { dataSourceId: selectedDataSourceForRelations.value || 0, fromTable: '', fromColumn: '', toTable: '', toColumn: '', source: 'manual' }
+  }
+  relationDialogVisible.value = true
+}
+
+async function saveRelation() {
+  savingRelation.value = true
+  try {
+    if (editingRelation.value?.id) await tableRelationApi.update(editingRelation.value.id, relationForm.value)
+    else await tableRelationApi.create(relationForm.value)
+    ElMessage.success('Relation saved'); relationDialogVisible.value = false; fetchRelations()
+  } catch (e: any) { ElMessage.error(e.response?.data?.message || 'Failed to save relation') }
+  finally { savingRelation.value = false }
+}
+
+async function deleteRelation(row: any) {
+  try { await ElMessageBox.confirm('Are you sure?', 'Warning', { type: 'warning' }); await tableRelationApi.delete(row.id); ElMessage.success('Relation deleted'); fetchRelations() }
+  catch { /* cancelled */ }
 }
 </script>
 

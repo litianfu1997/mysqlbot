@@ -60,6 +60,19 @@ export interface DataSource {
     schemaSyncedAt?: string
 }
 
+export interface TableRelation {
+    id?: number
+    dataSourceId: number
+    fromTable: string
+    fromColumn: string
+    toTable: string
+    toColumn: string
+    source: string  // 'fk' | 'naming' | 'llm' | 'manual'
+    confidence?: number
+    isActive?: number
+    createdAt?: string
+}
+
 // SSE stream event types
 export type SseEventType = 'user_message' | 'status' | 'thinking' | 'content' | 'sql_generated' | 'sql_executed' | 'suggest_questions' | 'complete' | 'error'
 
@@ -230,4 +243,12 @@ export const llmConfigApi = {
     delete: (id: number) => api.delete(`/llm-config/${id}`),
     setDefault: (id: number) => api.post(`/llm-config/${id}/set-default`),
     test: (data: LlmConfig) => api.post<{ success: boolean; message: string }>('/llm-config/test', data)
+}
+
+export const tableRelationApi = {
+    list: () => api.get<TableRelation[]>('/relation'),
+    listByDataSource: (dataSourceId: number) => api.get<TableRelation[]>(`/relation/datasource/${dataSourceId}`),
+    create: (data: TableRelation) => api.post<TableRelation>('/relation', data),
+    update: (id: number, data: TableRelation) => api.put<TableRelation>(`/relation/${id}`, data),
+    delete: (id: number) => api.delete(`/relation/${id}`)
 }
