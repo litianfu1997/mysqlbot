@@ -42,6 +42,7 @@ export interface ChatMessage {
     xAxis?: string
     yAxis?: string
     suggestQuestions?: string
+    thinkingContent?: string
     createdAt?: string
 }
 
@@ -60,8 +61,10 @@ export interface DataSource {
 }
 
 // SSE stream event types
+export type SseEventType = 'user_message' | 'status' | 'thinking' | 'content' | 'sql_generated' | 'sql_executed' | 'suggest_questions' | 'complete' | 'error'
+
 export interface SseEvent {
-    type: 'user_message' | 'status' | 'sql_generated' | 'sql_executed' | 'suggest_questions' | 'complete' | 'error'
+    type: SseEventType
     data: any
 }
 
@@ -82,10 +85,21 @@ export const chatApi = {
     /**
      * SSE streaming: returns an EventSource-like fetch reader.
      * Calls onEvent for each SSE event, onDone when complete.
+     *
+     * Event types:
+     *   - thinking: raw text token (LLM reasoning)
+     *   - content: raw text token (LLM response)
+     *   - status: { message: string }
+     *   - sql_generated: { sql: string, explanation: string }
+     *   - sql_executed: SqlExecuteResult
+     *   - suggest_questions: string[]
+     *   - complete: ChatMessage
+     *   - error: { message: string }
      */
     sendMessageStream: (
         sessionId: string,
         content: string,
+        thinking: boolean,
         onEvent: (event: SseEvent) => void,
         onDone: () => void,
         onError: (err: any) => void
@@ -95,7 +109,7 @@ export const chatApi = {
         fetch(`/api/chat/sessions/${sessionId}/messages/stream`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify({ content, thinking }),
             signal: controller.signal
         }).then(async (response) => {
             if (!response.ok) {
@@ -107,35 +121,67 @@ export const chatApi = {
 
             const decoder = new TextDecoder()
             let buffer = ''
-            let currentEventType = 'message'
+            let finished = false
+
+            const finish = () => {
+                if (!finished) {
+                    finished = true
+                    onDone()
+                }
+            }
+
+            const dispatchEvent = (rawEvent: string) => {
+                let eventType: SseEventType = 'status'
+                const dataLines: string[] = []
+
+                for (const rawLine of rawEvent.split('\n')) {
+                    if (!rawLine || rawLine.startsWith(':')) continue
+                    const colonIndex = rawLine.indexOf(':')
+                    const field = colonIndex === -1 ? rawLine : rawLine.slice(0, colonIndex)
+                    let value = colonIndex === -1 ? '' : rawLine.slice(colonIndex + 1)
+                    if (value.startsWith(' ')) value = value.slice(1)
+
+                    if (field === 'event') {
+                        eventType = value as SseEventType
+                    } else if (field === 'data') {
+                        dataLines.push(value)
+                    }
+                }
+
+                if (dataLines.length === 0) return
+
+                const rawData = dataLines.join('\n')
+                let data: any = rawData
+                try {
+                    data = JSON.parse(rawData)
+                } catch {
+                    // Keep raw data for defensive compatibility with old stream responses.
+                }
+
+                onEvent({ type: eventType, data })
+                if (eventType === 'complete' || eventType === 'error') {
+                    finish()
+                }
+            }
 
             while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
 
                 buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || ''
+                buffer = buffer.replace(/\r\n/g, '\n')
 
-                for (const line of lines) {
-                    if (line.startsWith('event:')) {
-                        currentEventType = line.slice(6).trim()
-                    } else if (line.startsWith('data:')) {
-                        const raw = line.slice(5).trim()
-                        try {
-                            const data = JSON.parse(raw)
-                            onEvent({ type: currentEventType as SseEvent['type'], data })
-                            if (currentEventType === 'complete' || currentEventType === 'error') {
-                                onDone()
-                                return
-                            }
-                        } catch {
-                            // skip malformed data lines
-                        }
-                    }
+                let boundary = buffer.indexOf('\n\n')
+                while (boundary !== -1) {
+                    const rawEvent = buffer.slice(0, boundary)
+                    buffer = buffer.slice(boundary + 2)
+                    dispatchEvent(rawEvent)
+                    if (finished) return
+                    boundary = buffer.indexOf('\n\n')
                 }
             }
-            onDone()
+            if (buffer.trim()) dispatchEvent(buffer)
+            finish()
         }).catch((err) => {
             if (err.name !== 'AbortError') onError(err)
         })

@@ -44,6 +44,9 @@ public class ChatMessage {
     @Column(name = "suggest_questions", columnDefinition = "TEXT")
     private String suggestQuestions;
 
+    @Column(name = "thinking_content", columnDefinition = "TEXT")
+    private String thinkingContent;
+
     @Column(name = "analysis", columnDefinition = "TEXT")
     private String analysis;
 

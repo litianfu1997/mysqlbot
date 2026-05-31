@@ -237,6 +237,7 @@ public class SqlGenerateService {
     private SqlGenerateResult parseLlmResponse(String llmResponse, Long dataSourceId) {
         String sql = null;
         String explanation = llmResponse;
+        List<String> tables = null;
 
         try {
             String jsonContent = extractJson(llmResponse);
@@ -248,6 +249,16 @@ public class SqlGenerateService {
                     }
                     if (rootNode.has("brief")) {
                         explanation = rootNode.get("brief").asText();
+                    }
+                    // 解析 tables 字段
+                    if (rootNode.has("tables")) {
+                        com.fasterxml.jackson.databind.JsonNode tablesNode = rootNode.get("tables");
+                        if (tablesNode.isArray()) {
+                            tables = new ArrayList<>();
+                            for (com.fasterxml.jackson.databind.JsonNode tableNode : tablesNode) {
+                                tables.add(tableNode.asText());
+                            }
+                        }
                     }
                 } else if (rootNode.has("message")) {
                     explanation = rootNode.get("message").asText();
@@ -264,6 +275,7 @@ public class SqlGenerateService {
         return SqlGenerateResult.builder()
                 .sql(sql)
                 .explanation(explanation)
+                .tables(tables)
                 .success(sql != null)
                 .build();
     }
@@ -435,5 +447,10 @@ public class SqlGenerateService {
         private String schemaContext;
         private boolean success;
         private String errorMessage;
+        private List<String> tables;  // 新增：LLM 返回的表名列表
+    }
+
+    public int getMaxRetry() {
+        return maxRetry;
     }
 }

@@ -62,6 +62,13 @@ public class AppConfig {
         /** 当前默认使用的模型别名 */
         private String defaultModel = "DeepSeek-V4-Flash";
 
+        /**
+         * 深度思考(推理)模型的实际模型名。
+         * 当对话开启「深度思考」开关时，流式生成调用会改用该模型（默认 DeepSeek reasoner）。
+         * 可替换为其他兼容 OpenAI 协议、会返回 reasoning_content 的推理模型。
+         */
+        private String reasoningModel = "deepseek-reasoner";
+
         /** API Key */
         private String apiKey = "your-api-key";
 

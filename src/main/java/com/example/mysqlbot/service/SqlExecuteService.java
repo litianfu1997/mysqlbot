@@ -160,7 +160,10 @@ public class SqlExecuteService {
                 List<String> dangerousKeywords = List.of("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
                         "TRUNCATE", "EXEC", "EXECUTE");
                 for (String keyword : dangerousKeywords) {
-                    if (upperSql.contains(keyword)) {
+                    // 使用单词边界匹配，避免标识符中的子串被误判
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\b" + keyword + "\\b");
+                    java.util.regex.Matcher matcher = pattern.matcher(upperSql);
+                    if (matcher.find()) {
                         throw new SecurityException("Security restriction: SQL contains dangerous keyword " + keyword);
                     }
                 }

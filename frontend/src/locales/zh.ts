@@ -1,4 +1,4 @@
-export default {
+﻿export default {
     common: {
         confirm: '确认',
         cancel: '取消',
@@ -10,7 +10,7 @@ export default {
     },
     chat: {
         newChat: '新会话',
-        placeholder: '询问有关您数据的问题...',
+        placeholder: '请问有关您数据的问题...',
         send: '发送',
         user: '用户',
         assistant: 'MySqlBot',
@@ -28,11 +28,13 @@ export default {
         manageLlmConfigs: '管理LLM配置...',
         noDb: '无数据源',
         startChat: '开始聊天',
-        selectDb: '选择一个数据库开始聊天:',
+        selectDb: '选择一个数据库开始聊天',
         selectLlmConfig: '选择LLM配置:',
         welcomeTitle: 'MySqlBot 智能助手',
         welcomeText: '我可以分析您的数据、生成 SQL 代码、创建图表并回答问题。',
         inputPlaceholder: '请输入您想了解的数据问题...',
+        deepThinking: '深度思考',
+        deepThinkingHint: '开启后使用推理模型，实时显示模型的思考过程（响应更慢）',
         examples: {
             topProducts: '按销量列出排名前5的产品',
             trendAnalysis: '显示去年的月度趋势',
@@ -51,11 +53,8 @@ export default {
         tabs: {
             llm: '大模型配置',
             database: '数据库配置',
-            dbType: '类型',
-            dbTypeOptions: {
-                postgresql: 'PostgreSQL',
-                mysql: 'MySQL'
-            },
+            wecom: '企业微信集成',
+            feishu: '飞书集成',
             system: '系统设置'
         },
         llm: {
@@ -85,10 +84,24 @@ export default {
             username: '用户名',
             password: '密码',
             database: '数据库名',
+            dbType: '类型',
             test: '测试连接',
             sync: '同步表结构',
             status: '状态',
             actions: '操作'
+        },
+        wecom: {
+            corpId: '企业ID (CorpId)',
+            agentId: '应用ID (AgentId)',
+            secret: '应用密钥 (Secret)',
+            token: '回调 Token',
+            enabled: '启用企业微信'
+        },
+        feishu: {
+            appId: '应用 ID (App ID)',
+            appSecret: '应用密钥 (App Secret)',
+            encryptKey: '加密密钥 (Encrypt Key)',
+            enabled: '启用飞书'
         },
         system: {
             language: '语言设置'

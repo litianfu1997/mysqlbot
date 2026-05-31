@@ -46,9 +46,6 @@ public class ChatController {
         return chatService.getMessages(sessionId);
     }
 
-    /**
-     * Send message - synchronous endpoint (backward compatible).
-     */
     @PostMapping("/sessions/{sessionId}/messages")
     public ResponseEntity<ChatMessage> sendMessage(
             @PathVariable("sessionId") String sessionId,
@@ -68,24 +65,21 @@ public class ChatController {
     }
 
     /**
-     * Send message - SSE streaming endpoint.
-     * Emits events: sql_generated, sql_executed, suggest_questions, complete.
+     * SSE streaming endpoint.
+     * All payloads are JSON encoded so token whitespace and line breaks are preserved.
      */
     @PostMapping(value = "/sessions/{sessionId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter sendMessageStream(
             @PathVariable("sessionId") String sessionId,
             @RequestBody SendMessageRequest request) {
 
-        SseEmitter emitter = new SseEmitter(120_000L); // 2 min timeout
+        SseEmitter emitter = new SseEmitter(180_000L); // 3 min timeout for streaming
 
         sseExecutor.execute(() -> {
             try {
-                chatService.chatStream(sessionId, request.getContent(), (event) -> {
+                chatService.chatStream(sessionId, request.getContent(), request.isThinking(), (event) -> {
                     try {
-                        String json = objectMapper.writeValueAsString(event.data());
-                        emitter.send(SseEmitter.event()
-                                .name(event.type())
-                                .data(json, MediaType.APPLICATION_JSON));
+                        sendEvent(emitter, event.type(), event.data());
                         if ("complete".equals(event.type()) || "error".equals(event.type())) {
                             emitter.complete();
                         }
@@ -97,17 +91,23 @@ public class ChatController {
             } catch (Exception e) {
                 log.error("SSE stream error", e);
                 try {
-                    String json = objectMapper.writeValueAsString(new ChatService.StreamEvent("error",
-                            java.util.Map.of("message", e.getMessage() != null ? e.getMessage() : "Unknown error")));
-                    emitter.send(SseEmitter.event().name("error").data(json, MediaType.APPLICATION_JSON));
+                    sendEvent(emitter, "error",
+                            java.util.Map.of("message", e.getMessage() != null ? e.getMessage() : "Unknown error"));
                 } catch (Exception ignored) {}
-                emitter.completeWithError(e);
+                emitter.complete();
             }
         });
 
         emitter.onTimeout(() -> log.warn("SSE emitter timed out for session {}", sessionId));
         emitter.onError(e -> log.warn("SSE emitter error for session {}: {}", sessionId, e.getMessage()));
         return emitter;
+    }
+
+    private void sendEvent(SseEmitter emitter, String eventName, Object data) throws java.io.IOException {
+        String json = objectMapper.writeValueAsString(data);
+        emitter.send(SseEmitter.event()
+                .name(eventName)
+                .data(json, MediaType.APPLICATION_JSON));
     }
 
     @PostMapping("/messages/{messageId}/analyze")
@@ -140,6 +140,7 @@ public class ChatController {
     @Data
     public static class SendMessageRequest {
         private String content;
+        /** 是否开启「深度思考」：true 时该次请求走推理模型并流式输出思考过程 */
+        private boolean thinking;
     }
 }
-

@@ -6,6 +6,7 @@ import com.example.mysqlbot.repository.LlmConfigRepository;
 import com.example.mysqlbot.service.llm.LlmProvider;
 import com.example.mysqlbot.service.llm.OpenAiCompatibleProvider;
 import com.example.mysqlbot.service.llm.ZhipuProvider;
+import com.example.mysqlbot.util.OpenAiLlmUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,9 +61,6 @@ public class LlmService {
         return provider.chat(systemPrompt, userMessage, temp, modelName);
     }
 
-    /**
-     * Multi-turn chat with structured message list.
-     */
     public String chatWithMessages(List<Map<String, String>> messages, Double temperature, LlmConfig config) {
         LlmProvider provider;
         String modelName;
@@ -80,6 +78,58 @@ public class LlmService {
         }
 
         return provider.chatWithMessages(messages, temp, modelName);
+    }
+
+    /**
+     * Streaming chat: delivers tokens in real-time via callback.
+     * Returns the full accumulated response text.
+     */
+    public String chatStream(String systemPrompt, String userMessage, Double temperature,
+                             LlmConfig config, OpenAiLlmUtil.StreamCallback callback) {
+        return chatStream(systemPrompt, userMessage, temperature, config, false, callback);
+    }
+
+    /**
+     * Streaming chat with optional deep-thinking mode.
+     * When {@code thinking} is true the model is overridden to the configured reasoning model
+     * (e.g. deepseek-reasoner) so the provider streams reasoning_content tokens.
+     */
+    public String chatStream(String systemPrompt, String userMessage, Double temperature,
+                             LlmConfig config, boolean thinking, OpenAiLlmUtil.StreamCallback callback) {
+        java.util.List<java.util.Map<String, String>> messages = new java.util.ArrayList<>();
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            messages.add(java.util.Map.of("role", "system", "content", systemPrompt));
+        }
+        messages.add(java.util.Map.of("role", "user", "content", userMessage));
+        return chatStreamWithMessages(messages, temperature, config, thinking, callback);
+    }
+
+    /**
+     * Streaming multi-turn chat using a pre-built messages array.
+     * The caller is responsible for building the full system/user/assistant sequence.
+     * Supports deep-thinking mode (thinking=true switches to the reasoning model).
+     */
+    public String chatStreamWithMessages(List<Map<String, String>> messages, Double temperature,
+                                         LlmConfig config, boolean thinking,
+                                         OpenAiLlmUtil.StreamCallback callback) {
+        LlmProvider provider;
+        String modelName;
+        double temp;
+
+        if (config != null) {
+            provider = providerCache.computeIfAbsent(config.getId(), k -> createProvider(config));
+            modelName = thinking ? resolveReasoningModel(config) : resolveModelName(config);
+            temp = (temperature != null) ? temperature : config.getTemperature().doubleValue();
+        } else {
+            provider = providerCache.computeIfAbsent(GLOBAL_CONFIG_KEY, k -> createProviderFromAppConfig());
+            AppConfig.LlmConfig llm = appConfig.getLlm();
+            modelName = thinking ? appConfig.getLlm().getReasoningModel()
+                    : llm.getModelMap().getOrDefault(llm.getDefaultModel(), llm.getDefaultModel());
+            temp = (temperature != null) ? temperature : llm.getTemperature();
+        }
+
+        log.debug("LlmService.chatStreamWithMessages: thinking={}, model={}, messages={}", thinking, modelName, messages.size());
+        return provider.chatStreamWithMessages(messages, temp, modelName, callback);
     }
 
     public String getModelName() {
@@ -135,6 +185,23 @@ public class LlmService {
         String alias = config.getDefaultModel();
         Map<String, String> map = config.getModelMap();
         return (map != null && map.containsKey(alias)) ? map.get(alias) : alias;
+    }
+
+    /**
+     * Resolve the reasoning (deep-thinking) model name for a DB-backed config.
+     * Prefers a "reasoning" alias declared in the config's modelMap, otherwise falls back
+     * to the globally configured reasoning model (mysqlbot.llm.reasoning-model).
+     */
+    private String resolveReasoningModel(LlmConfig config) {
+        Map<String, String> map = config.getModelMap();
+        if (map != null) {
+            for (Map.Entry<String, String> e : map.entrySet()) {
+                if (e.getKey() != null && e.getKey().toLowerCase().contains("reason")) {
+                    return e.getValue();
+                }
+            }
+        }
+        return appConfig.getLlm().getReasoningModel();
     }
 
     private boolean isZhipuUrl(String baseUrl) {

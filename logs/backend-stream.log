@@ -1,0 +1,645 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.example:mysqlbot >------------------------
+[INFO] Building MySqlBot 1.0.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.3.5:run (default-cli) > test-compile @ mysqlbot >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ mysqlbot ---
+[INFO] Copying 2 resources from src\main\resources to target\classes
+[INFO] Copying 18 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ mysqlbot ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ mysqlbot ---
+[INFO] skip non existing resourceDirectory D:\IdeaProjects\mysqlbot\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ mysqlbot ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] <<< spring-boot:3.3.5:run (default-cli) < test-compile @ mysqlbot <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.3.5:run (default-cli) @ mysqlbot ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.5)
+
+2026-05-31T15:21:30.300+08:00  INFO 25824 --- [MySqlBot] [           main] c.example.mysqlbot.MySqlBotApplication   : Starting MySqlBotApplication using Java 21.0.10 with PID 25824 (D:\IdeaProjects\mysqlbot\target\classes started by root in D:\IdeaProjects\mysqlbot)
+2026-05-31T15:21:30.301+08:00 DEBUG 25824 --- [MySqlBot] [           main] c.example.mysqlbot.MySqlBotApplication   : Running with Spring Boot v3.3.5, Spring v6.1.14
+2026-05-31T15:21:30.302+08:00  INFO 25824 --- [MySqlBot] [           main] c.example.mysqlbot.MySqlBotApplication   : No active profile set, falling back to 1 default profile: "default"
+2026-05-31T15:21:30.986+08:00  INFO 25824 --- [MySqlBot] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-05-31T15:21:31.203+08:00  INFO 25824 --- [MySqlBot] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 211 ms. Found 7 JPA repository interfaces.
+2026-05-31T15:21:31.611+08:00  INFO 25824 --- [MySqlBot] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2026-05-31T15:21:31.619+08:00  INFO 25824 --- [MySqlBot] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-05-31T15:21:31.624+08:00  INFO 25824 --- [MySqlBot] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.31]
+2026-05-31T15:21:31.686+08:00  INFO 25824 --- [MySqlBot] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-05-31T15:21:31.687+08:00  INFO 25824 --- [MySqlBot] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1235 ms
+2026-05-31T15:21:31.803+08:00  INFO 25824 --- [MySqlBot] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-05-31T15:21:31.843+08:00  INFO 25824 --- [MySqlBot] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.5.3.Final
+2026-05-31T15:21:31.865+08:00  INFO 25824 --- [MySqlBot] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-05-31T15:21:32.068+08:00  INFO 25824 --- [MySqlBot] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-05-31T15:21:32.093+08:00  INFO 25824 --- [MySqlBot] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-05-31T15:21:32.223+08:00  INFO 25824 --- [MySqlBot] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@7e9a836
+2026-05-31T15:21:32.226+08:00  INFO 25824 --- [MySqlBot] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-05-31T15:21:32.250+08:00  WARN 25824 --- [MySqlBot] [           main] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-05-31T15:21:33.046+08:00  INFO 25824 --- [MySqlBot] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-05-31T15:21:33.118+08:00  INFO 25824 --- [MySqlBot] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-05-31T15:21:33.347+08:00  WARN 25824 --- [MySqlBot] [           main] c.e.m.service.ZhipuEmbeddingService      : ZhipuEmbeddingService: API Key not configured, will initialize on use
+2026-05-31T15:21:33.355+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.mysqlbot.config.VectorStoreConfig    : VectorStoreConfig: vector_store 表初始化完成
+2026-05-31T15:21:33.442+08:00  WARN 25824 --- [MySqlBot] [           main] c.example.mysqlbot.service.LlmService    : LlmService: global API Key not configured, skipping pre-warm
+2026-05-31T15:21:33.446+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.mysqlbot.service.SqlGenerateService  : SqlGenerateService: prompt template cached (543 chars)
+2026-05-31T15:21:33.451+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.m.service.DataAnalysisService        : DataAnalysisService: prompt template cached (1561 chars)
+2026-05-31T15:21:33.452+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.m.service.SuggestQuestionService     : SuggestQuestionService: prompt template cached (1063 chars)
+2026-05-31T15:21:33.453+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.m.service.SqlPermissionService       : SqlPermissionService: prompt template cached (352 chars)
+2026-05-31T15:21:33.560+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.mysqlbot.service.ConfigService       : Loaded LLM config from DB: baseUrl=https://api.deepseek.com, model=DeepSeek-V4-Flash
+2026-05-31T15:21:33.571+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.mysqlbot.service.FeishuBotService    : 飞书集成已禁用
+2026-05-31T15:21:33.764+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.mysqlbot.service.WeComBotService     : 企业微信集成已禁用
+2026-05-31T15:21:33.771+08:00  INFO 25824 --- [MySqlBot] [           main] c.e.mysqlbot.service.ZhipuLlmService     : LlmService: 初始化通用 OpenAI 客户端, baseUrl=https://api.deepseek.com, model=deepseek-v4-flash
+2026-05-31T15:21:33.806+08:00  WARN 25824 --- [MySqlBot] [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-05-31T15:21:34.338+08:00  INFO 25824 --- [MySqlBot] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
+2026-05-31T15:21:34.345+08:00  INFO 25824 --- [MySqlBot] [           main] c.example.mysqlbot.MySqlBotApplication   : Started MySqlBotApplication in 4.376 seconds (process running for 4.741)
+2026-05-31T15:21:57.961+08:00  INFO 25824 --- [MySqlBot] [omcat-handler-0] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-05-31T15:21:57.967+08:00  INFO 25824 --- [MySqlBot] [omcat-handler-0] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-05-31T15:21:57.968+08:00  INFO 25824 --- [MySqlBot] [omcat-handler-0] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-05-31T15:22:48.576+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-74] c.e.mysqlbot.service.SqlGenerateService  : RAG disabled, skipping retrieval
+2026-05-31T15:22:48.588+08:00  INFO 25824 --- [MySqlBot] [     virtual-74] c.example.mysqlbot.service.LlmService    : LlmService: creating OpenAiCompatibleProvider, configId=3, baseUrl=https://api.deepseek.com
+2026-05-31T15:22:48.595+08:00  INFO 25824 --- [MySqlBot] [     virtual-74] c.e.m.s.llm.OpenAiCompatibleProvider     : OpenAiCompatibleProvider: client initialized baseUrl=https://api.deepseek.com
+2026-05-31T15:22:48.595+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-74] c.e.m.s.llm.OpenAiCompatibleProvider     : OpenAiCompatibleProvider chatStreamWithMessages: model=deepseek-chat, messages=1
+2026-05-31T15:22:48.596+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-74] c.example.mysqlbot.util.OpenAiLlmUtil    : OpenAiLlmUtil stream request: model=deepseek-chat, messages=1
+2026-05-31T15:22:49.636+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-74] c.e.mysqlbot.service.SqlGenerateService  : LLM stream response complete (264 chars)
+2026-05-31T15:22:49.706+08:00  INFO 25824 --- [MySqlBot] [     virtual-74] c.e.mysqlbot.service.SqlExecuteService   : Executing SQL [dataSource=电商测试库]: SELECT s.name AS 供应商名称, COUNT(p.id) AS 产品数量 FROM suppliers s LEFT JOIN products p ON s.id = p.supplier_id GROUP BY s.id, s.name ORDER BY 产品数量 DESC LIMIT 1000
+2026-05-31T15:22:49.708+08:00  INFO 25824 --- [MySqlBot] [     virtual-74] c.e.mysqlbot.service.SqlExecuteService   : Created connection pool for dataSourceId=3, name=电商测试库
+2026-05-31T15:22:49.711+08:00  INFO 25824 --- [MySqlBot] [     virtual-74] com.zaxxer.hikari.HikariDataSource       : ds-3 - Starting...
+2026-05-31T15:22:49.755+08:00  INFO 25824 --- [MySqlBot] [     virtual-74] com.zaxxer.hikari.pool.HikariPool        : ds-3 - Added connection org.postgresql.jdbc.PgConnection@1e86e981
+2026-05-31T15:22:49.755+08:00  INFO 25824 --- [MySqlBot] [     virtual-74] com.zaxxer.hikari.HikariDataSource       : ds-3 - Start completed.
+2026-05-31T15:22:49.762+08:00  INFO 25824 --- [MySqlBot] [     virtual-74] c.e.mysqlbot.service.SqlExecuteService   : SQL executed successfully, returned 30 rows
+2026-05-31T15:22:49.768+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-74] c.e.m.s.llm.OpenAiCompatibleProvider     : OpenAiCompatibleProvider chat: model=deepseek-chat, temperature=0.5
+2026-05-31T15:22:49.769+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-74] c.example.mysqlbot.util.OpenAiLlmUtil    : OpenAiLlmUtil request: model=deepseek-chat, messages=1
+2026-05-31T15:22:50.769+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-74] c.e.m.service.SuggestQuestionService     : LLM suggest questions response:
+[
+  "各供应商的产品数量排名是怎样的？",
+  "哪些供应商的产品数量增长最快或下降最快？",
+  "按产品类别或地区拆分，各供应商的表现如何？"
+]
+2026-05-31T15:23:27.734+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-86] c.e.mysqlbot.service.SqlGenerateService  : RAG disabled, skipping retrieval
+2026-05-31T15:23:27.741+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-86] c.e.m.s.llm.OpenAiCompatibleProvider     : OpenAiCompatibleProvider chatStreamWithMessages: model=deepseek-chat, messages=1
+2026-05-31T15:23:27.741+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-86] c.example.mysqlbot.util.OpenAiLlmUtil    : OpenAiLlmUtil stream request: model=deepseek-chat, messages=1
+2026-05-31T15:23:28.432+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-86] c.e.mysqlbot.service.SqlGenerateService  : LLM stream response complete (128 chars)
+2026-05-31T15:23:28.441+08:00  INFO 25824 --- [MySqlBot] [     virtual-86] c.e.mysqlbot.service.SqlExecuteService   : Executing SQL [dataSource=电商测试库]: SELECT COUNT(*) AS "客户总数" FROM customers
+2026-05-31T15:23:28.445+08:00  INFO 25824 --- [MySqlBot] [     virtual-86] c.e.mysqlbot.service.SqlExecuteService   : SQL executed successfully, returned 1 rows
+2026-05-31T15:23:28.445+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-86] c.e.m.s.llm.OpenAiCompatibleProvider     : OpenAiCompatibleProvider chat: model=deepseek-chat, temperature=0.5
+2026-05-31T15:23:28.445+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-86] c.example.mysqlbot.util.OpenAiLlmUtil    : OpenAiLlmUtil request: model=deepseek-chat, messages=1
+2026-05-31T15:23:29.501+08:00 DEBUG 25824 --- [MySqlBot] [     virtual-86] c.e.m.service.SuggestQuestionService     : LLM suggest questions response:
+[
+  "这些客户按地区分布情况如何？",
+  "过去一年客户总数的月度变化趋势是怎样的？",
+  "新客户与老客户的数量占比是多少？"
+]
+2026-05-31T16:13:02.756+08:00 DEBUG 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.service.SqlGenerateService  : RAG disabled, skipping retrieval
+2026-05-31T16:13:02.763+08:00 DEBUG 25824 --- [MySqlBot] [    virtual-118] c.e.m.s.llm.OpenAiCompatibleProvider     : OpenAiCompatibleProvider chatStreamWithMessages: model=deepseek-chat, messages=1
+2026-05-31T16:13:02.763+08:00 DEBUG 25824 --- [MySqlBot] [    virtual-118] c.example.mysqlbot.util.OpenAiLlmUtil    : OpenAiLlmUtil stream request: model=deepseek-chat, messages=1
+2026-05-31T16:13:04.370+08:00 DEBUG 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.service.SqlGenerateService  : LLM stream response complete (218 chars)
+2026-05-31T16:13:04.372+08:00  WARN 25824 --- [MySqlBot] [mcat-handler-16] c.e.mysqlbot.controller.ChatController   : SSE emitter error for session 21e2a726-209d-44ef-bd5d-60e67ca5c4f9: Connection reset by peer
+2026-05-31T16:13:04.371+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest$LifecycleHttpServletResponse.handleIOException(StandardServletAsyncWebRequest.java:343) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest$LifecycleServletOutputStream.flush(StandardServletAsyncWebRequest.java:415) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.util.StreamUtils.copy(StreamUtils.java:135) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.StringHttpMessageConverter.writeInternal(StringHttpMessageConverter.java:128) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.StringHttpMessageConverter.writeInternal(StringHttpMessageConverter.java:44) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.AbstractHttpMessageConverter.write(AbstractHttpMessageConverter.java:235) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitterReturnValueHandler$HttpMessageConvertingHandler.sendInternal(ResponseBodyEmitterReturnValueHandler.java:221) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitterReturnValueHandler$HttpMessageConvertingHandler.send(ResponseBodyEmitterReturnValueHandler.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.sendInternal(ResponseBodyEmitter.java:223) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:214) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:366) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:176) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+Caused by: org.apache.catalina.connector.ClientAbortException: java.io.IOException: Connection reset by peer
+	at org.apache.catalina.connector.OutputBuffer.doFlush(OutputBuffer.java:303) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.OutputBuffer.flush(OutputBuffer.java:265) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.CoyoteOutputStream.flush(CoyoteOutputStream.java:136) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest$LifecycleServletOutputStream.flush(StandardServletAsyncWebRequest.java:412) ~[spring-web-6.1.14.jar:6.1.14]
+	... 29 common frames omitted
+Caused by: java.io.IOException: Connection reset by peer
+	at java.base/sun.nio.ch.SocketDispatcher.write0(Native Method) ~[na:na]
+	at java.base/sun.nio.ch.SocketDispatcher.write(SocketDispatcher.java:54) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.writeFromNativeBuffer(IOUtil.java:137) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.write(IOUtil.java:102) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.write(IOUtil.java:58) ~[na:na]
+	at java.base/sun.nio.ch.SocketChannelImpl.write(SocketChannelImpl.java:542) ~[na:na]
+	at org.apache.tomcat.util.net.NioChannel.write(NioChannel.java:122) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.NioEndpoint$NioSocketWrapper.doWrite(NioEndpoint.java:1378) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.doWrite(SocketWrapperBase.java:764) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.flushBlocking(SocketWrapperBase.java:728) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.flush(SocketWrapperBase.java:712) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11OutputBuffer$SocketOutputBuffer.flush(Http11OutputBuffer.java:574) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.filters.ChunkedOutputFilter.flush(ChunkedOutputFilter.java:156) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11OutputBuffer.flush(Http11OutputBuffer.java:216) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11Processor.flush(Http11Processor.java:1252) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.AbstractProcessor.action(AbstractProcessor.java:408) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.Response.action(Response.java:208) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.OutputBuffer.doFlush(OutputBuffer.java:299) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	... 32 common frames omitted
+
+2026-05-31T16:13:04.378+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:367) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:176) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.378+08:00  WARN 25824 --- [MySqlBot] [mcat-handler-16] .m.m.a.ExceptionHandlerExceptionResolver : Failure in @ExceptionHandler com.example.mysqlbot.exception.GlobalExceptionHandler#handleGenericException(Exception)
+
+org.springframework.http.converter.HttpMessageNotWritableException: No converter for [class java.util.ImmutableCollections$MapN] with preset Content-Type 'text/event-stream'
+	at org.springframework.web.servlet.mvc.method.annotation.AbstractMessageConverterMethodProcessor.writeWithMessageConverters(AbstractMessageConverterMethodProcessor.java:319) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.HttpEntityMethodProcessor.handleReturnValue(HttpEntityMethodProcessor.java:245) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.method.support.HandlerMethodReturnValueHandlerComposite.handleReturnValue(HandlerMethodReturnValueHandlerComposite.java:78) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:136) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver.doResolveHandlerMethodException(ExceptionHandlerExceptionResolver.java:432) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.handler.AbstractHandlerMethodExceptionResolver.doResolveException(AbstractHandlerMethodExceptionResolver.java:74) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.handler.AbstractHandlerExceptionResolver.resolveException(AbstractHandlerExceptionResolver.java:175) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.handler.HandlerExceptionResolverComposite.resolveException(HandlerExceptionResolverComposite.java:80) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.DispatcherServlet.processHandlerException(DispatcherServlet.java:1358) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.DispatcherServlet.processDispatchResult(DispatcherServlet.java:1161) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1106) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.31.jar:6.0]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.31.jar:6.0]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:195) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:101) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:101) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.ApplicationDispatcher.invoke(ApplicationDispatcher.java:632) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.ApplicationDispatcher.doDispatch(ApplicationDispatcher.java:560) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.ApplicationDispatcher.dispatch(ApplicationDispatcher.java:531) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.AsyncContextImpl$AsyncRunnable.run(AsyncContextImpl.java:601) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.AsyncContextImpl.doInternalDispatch(AsyncContextImpl.java:344) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:165) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:483) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:239) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1741) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.378+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:177) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.379+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:366) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:185) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.379+08:00 ERROR 25824 --- [MySqlBot] [mcat-handler-16] o.a.c.c.C.[.[.[/].[dispatcherServlet]    : Servlet.service() for servlet [dispatcherServlet] threw exception
+
+java.io.IOException: Connection reset by peer
+	at java.base/sun.nio.ch.SocketDispatcher.write0(Native Method) ~[na:na]
+	at java.base/sun.nio.ch.SocketDispatcher.write(SocketDispatcher.java:54) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.writeFromNativeBuffer(IOUtil.java:137) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.write(IOUtil.java:102) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.write(IOUtil.java:58) ~[na:na]
+	at java.base/sun.nio.ch.SocketChannelImpl.write(SocketChannelImpl.java:542) ~[na:na]
+	at org.apache.tomcat.util.net.NioChannel.write(NioChannel.java:122) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.NioEndpoint$NioSocketWrapper.doWrite(NioEndpoint.java:1378) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.doWrite(SocketWrapperBase.java:764) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.flushBlocking(SocketWrapperBase.java:728) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.flush(SocketWrapperBase.java:712) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11OutputBuffer$SocketOutputBuffer.flush(Http11OutputBuffer.java:574) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.filters.ChunkedOutputFilter.flush(ChunkedOutputFilter.java:156) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11OutputBuffer.flush(Http11OutputBuffer.java:216) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11Processor.flush(Http11Processor.java:1252) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.AbstractProcessor.action(AbstractProcessor.java:408) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.Response.action(Response.java:208) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.OutputBuffer.doFlush(OutputBuffer.java:299) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.OutputBuffer.flush(OutputBuffer.java:265) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.CoyoteOutputStream.flush(CoyoteOutputStream.java:136) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest$LifecycleServletOutputStream.flush(StandardServletAsyncWebRequest.java:412) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.util.StreamUtils.copy(StreamUtils.java:135) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.StringHttpMessageConverter.writeInternal(StringHttpMessageConverter.java:128) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.StringHttpMessageConverter.writeInternal(StringHttpMessageConverter.java:44) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.AbstractHttpMessageConverter.write(AbstractHttpMessageConverter.java:235) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitterReturnValueHandler$HttpMessageConvertingHandler.sendInternal(ResponseBodyEmitterReturnValueHandler.java:221) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitterReturnValueHandler$HttpMessageConvertingHandler.send(ResponseBodyEmitterReturnValueHandler.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.sendInternal(ResponseBodyEmitter.java:223) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:214) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:366) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:176) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.379+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:367) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:185) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.380+08:00 ERROR 25824 --- [MySqlBot] [mcat-handler-16] o.a.c.c.C.[.[.[/].[dispatcherServlet]    : Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception
+
+java.io.IOException: Connection reset by peer
+	at java.base/sun.nio.ch.SocketDispatcher.write0(Native Method) ~[na:na]
+	at java.base/sun.nio.ch.SocketDispatcher.write(SocketDispatcher.java:54) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.writeFromNativeBuffer(IOUtil.java:137) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.write(IOUtil.java:102) ~[na:na]
+	at java.base/sun.nio.ch.IOUtil.write(IOUtil.java:58) ~[na:na]
+	at java.base/sun.nio.ch.SocketChannelImpl.write(SocketChannelImpl.java:542) ~[na:na]
+	at org.apache.tomcat.util.net.NioChannel.write(NioChannel.java:122) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.NioEndpoint$NioSocketWrapper.doWrite(NioEndpoint.java:1378) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.doWrite(SocketWrapperBase.java:764) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.flushBlocking(SocketWrapperBase.java:728) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.tomcat.util.net.SocketWrapperBase.flush(SocketWrapperBase.java:712) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11OutputBuffer$SocketOutputBuffer.flush(Http11OutputBuffer.java:574) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.filters.ChunkedOutputFilter.flush(ChunkedOutputFilter.java:156) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11OutputBuffer.flush(Http11OutputBuffer.java:216) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.http11.Http11Processor.flush(Http11Processor.java:1252) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.AbstractProcessor.action(AbstractProcessor.java:408) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.coyote.Response.action(Response.java:208) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.OutputBuffer.doFlush(OutputBuffer.java:299) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.OutputBuffer.flush(OutputBuffer.java:265) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.apache.catalina.connector.CoyoteOutputStream.flush(CoyoteOutputStream.java:136) ~[tomcat-embed-core-10.1.31.jar:10.1.31]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest$LifecycleServletOutputStream.flush(StandardServletAsyncWebRequest.java:412) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.util.StreamUtils.copy(StreamUtils.java:135) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.StringHttpMessageConverter.writeInternal(StringHttpMessageConverter.java:128) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.StringHttpMessageConverter.writeInternal(StringHttpMessageConverter.java:44) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.http.converter.AbstractHttpMessageConverter.write(AbstractHttpMessageConverter.java:235) ~[spring-web-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitterReturnValueHandler$HttpMessageConvertingHandler.sendInternal(ResponseBodyEmitterReturnValueHandler.java:221) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitterReturnValueHandler$HttpMessageConvertingHandler.send(ResponseBodyEmitterReturnValueHandler.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.sendInternal(ResponseBodyEmitter.java:223) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:214) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:366) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:176) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.383+08:00  INFO 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.service.SqlExecuteService   : Executing SQL [dataSource=电商测试库]: SELECT o.order_status AS "订单状态", COUNT(o.id) AS "订单数量" FROM orders o GROUP BY o.order_status ORDER BY "订单数量" DESC LIMIT 1000
+2026-05-31T16:13:04.388+08:00  INFO 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.service.SqlExecuteService   : SQL executed successfully, returned 6 rows
+2026-05-31T16:13:04.388+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:193) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.389+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:366) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:197) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.389+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:367) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:197) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:04.390+08:00 DEBUG 25824 --- [MySqlBot] [    virtual-118] c.e.m.s.llm.OpenAiCompatibleProvider     : OpenAiCompatibleProvider chat: model=deepseek-chat, temperature=0.5
+2026-05-31T16:13:04.390+08:00 DEBUG 25824 --- [MySqlBot] [    virtual-118] c.example.mysqlbot.util.OpenAiLlmUtil    : OpenAiLlmUtil request: model=deepseek-chat, messages=1
+2026-05-31T16:13:06.564+08:00 DEBUG 25824 --- [MySqlBot] [    virtual-118] c.e.m.service.SuggestQuestionService     : LLM suggest questions response:
+[
+  "不同订单状态在最近一个月的数量分布如何？",
+  "各订单状态对应的平均订单金额是多少？",
+  "不同支付方式下订单状态的分布情况是怎样的？"
+]
+2026-05-31T16:13:06.569+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:199) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:06.570+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:366) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:204) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:06.571+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.emitProgress(ChatService.java:367) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.lambda$chatStream$2(ChatService.java:142) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:204) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+2026-05-31T16:13:06.573+08:00 ERROR 25824 --- [MySqlBot] [    virtual-118] c.e.mysqlbot.controller.ChatController   : SSE emit failed
+
+java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: java.lang.IllegalStateException: ResponseBodyEmitter has already completed with error: org.springframework.web.context.request.async.AsyncRequestNotUsableException: ServletOutputStream failed to flush: java.io.IOException: Connection reset by peer
+	at org.springframework.util.Assert.state(Assert.java:97) ~[spring-core-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter.send(ResponseBodyEmitter.java:212) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at org.springframework.web.servlet.mvc.method.annotation.SseEmitter.send(SseEmitter.java:135) ~[spring-webmvc-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.controller.ChatController.sendEvent(ChatController.java:108) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$0(ChatController.java:82) ~[classes/:na]
+	at com.example.mysqlbot.service.ChatService.chatStream(ChatService.java:217) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:355) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:379) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:768) ~[spring-aop-6.1.14.jar:6.1.14]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:720) ~[spring-aop-6.1.14.jar:6.1.14]
+	at com.example.mysqlbot.service.ChatService$$SpringCGLIB$$0.chatStream(<generated>) ~[classes/:na]
+	at com.example.mysqlbot.controller.ChatController.lambda$sendMessageStream$1(ChatController.java:80) ~[classes/:na]
+	at java.base/java.util.concurrent.ThreadPerTaskExecutor$TaskRunner.run(ThreadPerTaskExecutor.java:314) ~[na:na]
+	at java.base/java.lang.VirtualThread.run(VirtualThread.java:329) ~[na:na]
+
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  56:21 min
+[INFO] Finished at: 2026-05-31T16:17:48+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.springframework.boot:spring-boot-maven-plugin:3.3.5:run (default-cli) on project mysqlbot: Process terminated with exit code: 1 -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException

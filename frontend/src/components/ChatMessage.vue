@@ -1,79 +1,119 @@
 <template>
-  <div class="message" :class="{ 'message-user': message.role === 'user', 'message-assistant': message.role === 'assistant' }">
-    <div class="message-content">
+  <div class="message" :class="{ 'message--user': message.role === 'user', 'message--assistant': message.role === 'assistant' }">
+    <!-- Avatar -->
+    <div class="message__avatar" :class="message.role === 'user' ? 'message__avatar--user' : 'message__avatar--bot'">
+      <template v-if="message.role === 'user'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </template>
+      <template v-else>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+        </svg>
+      </template>
+    </div>
+
+    <div class="message__body">
       <!-- Role Label -->
-      <div class="role-label">{{ message.role === 'user' ? $t('chat.user') : $t('chat.assistant') }}</div>
+      <div class="message__role">{{ message.role === 'user' ? $t('chat.user') : $t('chat.assistant') }}</div>
 
-      <!-- Text Content (Markdown) -->
-      <div v-html="renderMarkdown(message.content)" class="markdown-body"></div>
-
-      <!-- SQL Query -->
-      <div v-if="message.sqlQuery" class="sql-block">
-        <div class="sql-header">{{ $t('chat.generatedSql') }}</div>
-        <pre><code class="language-sql">{{ message.sqlQuery }}</code></pre>
+      <!-- Thinking Section (collapsible) -->
+      <div v-if="thinkingText" class="thinking-block">
+        <button class="thinking-toggle" @click="thinkingExpanded = !thinkingExpanded">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a8 8 0 0 1 8 8c0 3.1-1.8 5.8-4.4 7.1-.4.2-.6.6-.6 1V20a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1.9c0-.4-.2-.8-.6-1A8 8 0 0 1 12 2z"/>
+            <line x1="9" y1="21" x2="15" y2="21"/>
+          </svg>
+          <span class="thinking-label">{{ thinkingExpanded ? '收起思考' : '查看思考' }}</span>
+          <span class="thinking-duration">({{ thinkingText.length }} 字)</span>
+          <svg class="thinking-chevron" :class="{ 'thinking-chevron--open': thinkingExpanded }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div v-if="thinkingExpanded" class="thinking-content" v-html="renderMarkdown(thinkingText)"></div>
       </div>
 
-      <!-- Error Message -->
-      <el-alert v-if="message.errorMsg" :title="message.errorMsg" type="error" :closable="false" show-icon class="mt-2" />
+      <!-- Text Content -->
+      <div v-if="message.content" class="markdown-body" :class="{ 'markdown-body--streaming': isStreaming }">
+        <div v-html="renderMarkdown(message.content)"></div>
+        <span v-if="isStreaming" class="streaming-cursor"></span>
+      </div>
+      <div v-else-if="isStreaming" class="markdown-body markdown-body--streaming markdown-body--placeholder">
+        <span>{{ chatStore.streamingStatus || '正在处理...' }}</span>
+        <span class="streaming-cursor"></span>
+      </div>
+
+      <!-- SQL Block -->
+      <div v-if="message.sqlQuery" class="sql-block">
+        <div class="sql-block__header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <span>{{ $t('chat.generatedSql') }}</span>
+          <button class="sql-block__copy" @click="copySql(message.sqlQuery || '')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+        <pre class="sql-block__code"><code class="language-sql">{{ message.sqlQuery }}</code></pre>
+      </div>
+
+      <!-- Error -->
+      <el-alert v-if="message.errorMsg" :title="message.errorMsg" type="error" :closable="false" show-icon class="mt-3" />
 
       <!-- Data Analysis -->
       <div v-if="message.analysis" class="analysis-block">
-        <div class="analysis-header"><b>{{ $t('chat.analysis') }}</b></div>
-        <div v-html="renderMarkdown(message.analysis)"></div>
+        <div class="analysis-block__header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          <span>{{ $t('chat.analysis') }}</span>
+        </div>
+        <div v-html="renderMarkdown(message.analysis)" class="analysis-block__content"></div>
       </div>
 
-      <!-- Table: always show when there is data -->
-      <div v-if="parsedResult && parsedResult.rows && parsedResult.rows.length > 0" class="table-block mt-2">
-        <el-table :data="parsedResult.rows" border style="width: 100%" height="300" stripe>
-           <el-table-column v-for="col in parsedResult.columns" :key="col" :prop="col" :label="col" show-overflow-tooltip />
-        </el-table>
-        <div class="text-xs text-gray-500 mt-1">{{ $t('chat.rowCount', { count: parsedResult.rowCount }) }}</div>
+      <!-- Table -->
+      <div v-if="parsedResult && parsedResult.rows && parsedResult.rows.length > 0" class="table-block">
+        <div class="table-block__wrapper">
+          <el-table :data="parsedResult.rows" border style="width: 100%" height="300" stripe size="small">
+            <el-table-column v-for="col in parsedResult.columns" :key="col" :prop="col" :label="col" show-overflow-tooltip />
+          </el-table>
+        </div>
+        <div class="table-block__footer">{{ $t('chat.rowCount', { count: parsedResult.rowCount }) }}</div>
       </div>
 
-      <!-- Chart (Bar/Line/Pie) -->
-      <!-- Show if chartType exists, OR if we have data (to allow generation) -->
-      <div v-if="(message.chartType && message.chartType !== 'Table') || (parsedResult && parsedResult.rows && parsedResult.rows.length > 0 && !message.chartType)" class="chart-block mt-2">
-        
-        <!-- Case 1: Analysis not done yet -->
-        <div v-if="!message.chartType && !analyzing" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
-           <div class="text-sm text-gray-500 mb-2">{{ $t('chat.generateChart') }} (AI)</div>
-           <el-button type="primary" size="small" @click="handleAnalyze">
-             {{ $t('chat.generateChart') }}
-           </el-button>
+      <!-- Chart -->
+      <div v-if="(message.chartType && message.chartType !== 'Table') || (parsedResult && parsedResult.rows && parsedResult.rows.length > 0 && !message.chartType)" class="chart-block">
+        <!-- Not analyzed yet -->
+        <div v-if="!message.chartType && !analyzing" class="chart-placeholder">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          <span class="chart-placeholder__text">{{ $t('chat.generateChart') }}</span>
+          <el-button type="primary" size="small" @click="handleAnalyze">
+            {{ $t('chat.generateChart') }}
+          </el-button>
         </div>
 
-         <!-- Case 2: Analyzing -->
-        <div v-else-if="analyzing" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
-           <el-icon class="is-loading mb-2 text-blue-500" style="font-size: 24px"><Loading /></el-icon>
-           <div class="text-sm text-gray-500">{{ $t('chat.analyzing') }}</div>
+        <!-- Analyzing -->
+        <div v-else-if="analyzing" class="chart-placeholder">
+          <el-icon class="is-loading" style="font-size:24px;color:var(--brand-500)"><Loading /></el-icon>
+          <span class="chart-placeholder__text">{{ $t('chat.analyzing') }}</span>
         </div>
 
-        <!-- Case 3: Chart ready but hidden (toggle) -->
-        <div v-else-if="!showChart" class="flex flex-col items-center justify-center p-4 bg-gray-50 rounded border border-gray-200">
-           <div class="text-sm text-gray-500 mb-2">{{ $t('chat.chartGenerated', { chartType: message.chartType }) }}</div>
-           <el-button type="primary" size="small" @click="showChart = true">
-             {{ $t('chat.showChart') }}
-           </el-button>
+        <!-- Chart ready but hidden -->
+        <div v-else-if="!showChart" class="chart-placeholder">
+          <span class="chart-placeholder__text">{{ $t('chat.chartGenerated', { chartType: message.chartType }) }}</span>
+          <el-button type="primary" size="small" @click="showChart = true">
+            {{ $t('chat.showChart') }}
+          </el-button>
         </div>
-        
-        <!-- Case 4: Chart visible -->
-        <div v-else ref="chartRef" style="width: 100%; height: 300px;"></div>
+
+        <!-- Chart visible -->
+        <div v-else ref="chartRef" class="chart-canvas"></div>
       </div>
-      
-       <!-- Suggested Questions -->
+
+      <!-- Suggested Questions -->
       <div v-if="suggestedQuestions.length > 0" class="suggestions">
-        <el-tag 
-          v-for="q in suggestedQuestions" 
-          :key="q" 
-          class="suggestion-tag cursor-pointer hover:bg-blue-100" 
+        <button
+          v-for="q in suggestedQuestions"
+          :key="q"
+          class="suggestion-chip"
           @click="$emit('ask', q)"
-          effect="plain"
-          round
         >
           {{ q }}
-        </el-tag>
+        </button>
       </div>
-
     </div>
   </div>
 </template>
@@ -86,39 +126,36 @@ import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import * as echarts from 'echarts'
 import { Loading } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
-const props = defineProps<{
-  message: ChatMessage
-}>()
-
+const props = defineProps<{ message: ChatMessage }>()
 const emit = defineEmits(['ask'])
 const chatStore = useChatStore()
 const analyzing = ref(false)
+const thinkingExpanded = ref(false)
 
 const md = new MarkdownIt({
   html: true,
   linkify: true,
   highlight: function (str: string, lang: string) {
     if (lang && hljs.getLanguage(lang)) {
-      try {
-        return hljs.highlight(str, { language: lang }).value;
-      } catch (__) {}
+      try { return hljs.highlight(str, { language: lang }).value } catch (__) {}
     }
-    return ''; // use external default escaping
+    return ''
   }
 })
 
-function renderMarkdown(text: string) {
-  return md.render(text || '')
+function renderMarkdown(text: string) { return md.render(text || '') }
+
+function copySql(sql: string) {
+  navigator.clipboard.writeText(sql).then(() => {
+    ElMessage.success('Copied!')
+  }).catch(() => {})
 }
 
 const parsedResult = computed(() => {
   if (!props.message.sqlResult) return null
-  try {
-    return JSON.parse(props.message.sqlResult)
-  } catch (e) {
-    return null
-  }
+  try { return JSON.parse(props.message.sqlResult) } catch { return null }
 })
 
 const suggestedQuestions = computed(() => {
@@ -126,95 +163,78 @@ const suggestedQuestions = computed(() => {
   try {
     const qs = JSON.parse(props.message.suggestQuestions)
     return Array.isArray(qs) ? qs : []
-  } catch (e) {
-     return []
-  }
+  } catch { return [] }
 })
+
+// Thinking content: from the thinkingContent field set during streaming
+const thinkingText = computed(() => props.message.thinkingContent || '')
+
+// Streaming state: show cursor while loading and content is being streamed
+const isStreaming = computed(() => {
+  return chatStore.loading && props.message.role === 'assistant' && !props.message.id
+})
+
+watch(thinkingText, (value) => {
+  if (value && isStreaming.value) {
+    thinkingExpanded.value = true
+  }
+}, { immediate: true })
 
 // Chart Logic
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
 const showChart = ref(false)
 
-// If chartType is already present (e.g. from history), default showChart to false (require click)
-// Or if the user just clicked "Analyze", we might want to auto-show. 
-// Let's watch for chartType changes.
-
 watch(() => props.message.chartType, (newVal) => {
     if (newVal && newVal !== 'Table') {
-        // If we were analyzing, auto show
-        if (analyzing.value) {
-            analyzing.value = false
-            showChart.value = true
-        }
+        if (analyzing.value) { analyzing.value = false; showChart.value = true }
     }
 })
-
 watch(() => props.message, () => {
-    if (showChart.value) {
-        nextTick(() => renderChart())
-    }
+    if (showChart.value) nextTick(() => renderChart())
 }, { flush: 'post', deep: true })
-
-watch(showChart, (val) => {
-    if (val) {
-        nextTick(() => renderChart())
-    }
-})
-
-onMounted(() => {
-  if (showChart.value) {
-     nextTick(() => renderChart())
-  }
-})
+watch(showChart, (val) => { if (val) nextTick(() => renderChart()) })
+onMounted(() => { if (showChart.value) nextTick(() => renderChart()) })
 
 async function handleAnalyze() {
     if (!props.message.id) return
     analyzing.value = true
     await chatStore.analyzeMessage(props.message.id)
     analyzing.value = false
-    // showChart.value will be set to true by the watcher if successful
 }
 
 function renderChart() {
   if (!showChart.value) return
   if (!props.message.chartType || props.message.chartType === 'Table' || !parsedResult.value || !chartRef.value) return
-  
-  if (chartInstance) {
-      chartInstance.dispose()
-  }
+  if (chartInstance) chartInstance.dispose()
   chartInstance = echarts.init(chartRef.value)
-  
+
   const data = parsedResult.value.rows || []
   const columns = parsedResult.value.columns || []
-  
-  // Auto detect fields if not provided
   const xAxisName = props.message.xAxis || columns[0]
   const yAxisName = props.message.yAxis || columns[1]
-  
   const type = props.message.chartType.toLowerCase()
 
   const option: any = {
-    title: { text: '', left: 'center' },
-    tooltip: { trigger: 'axis' },
+    color: ['#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#1d4ed8'],
+    tooltip: { trigger: type === 'pie' ? 'item' : 'axis', backgroundColor: '#fff', borderColor: '#e2e8f0', textStyle: { color: '#1e293b', fontSize: 13 } },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: data.map((row: any) => row[xAxisName]) },
-    yAxis: { type: 'value' },
+    xAxis: { type: 'category', data: data.map((row: any) => row[xAxisName]), axisLabel: { color: '#64748b' }, axisLine: { lineStyle: { color: '#e2e8f0' } } },
+    yAxis: { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
     series: [{
       name: yAxisName,
       data: data.map((row: any) => row[yAxisName]),
-      type: type === 'pie' ? 'pie' : (type === 'line' ? 'line' : 'bar')
+      type: type === 'pie' ? 'pie' : (type === 'line' ? 'line' : 'bar'),
+      smooth: true,
+      barWidth: '40%',
     }]
   }
-  
-  // Pie chart special handling
+
   if (type === 'pie') {
-     option.xAxis = undefined
-     option.yAxis = undefined
-     option.grid = undefined
-     option.tooltip = { trigger: 'item' }
-     option.series[0].radius = '50%'
-     option.series[0].data = data.map((row: any) => ({ value: row[yAxisName], name: row[xAxisName] }))
+    option.xAxis = undefined; option.yAxis = undefined; option.grid = undefined
+    option.series[0].radius = ['35%', '65%']
+    option.series[0].itemStyle = { borderRadius: 6, borderColor: '#fff', borderWidth: 2 }
+    option.series[0].data = data.map((row: any) => ({ value: row[yAxisName], name: row[xAxisName] }))
   }
 
   chartInstance.setOption(option)
@@ -223,87 +243,269 @@ function renderChart() {
 </script>
 
 <style scoped>
+/* ===== Message Row ===== */
 .message {
-  margin-bottom: 24px;
   display: flex;
-  flex-direction: column;
-}
-.message-user {
-  align-items: flex-end;
-}
-.message-assistant {
+  gap: 12px;
+  margin-bottom: 28px;
   align-items: flex-start;
 }
-.message-content {
-    background-color: white;
-    padding: 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    max-width: 90%;
-    overflow-x: auto;
+.message--user { flex-direction: row-reverse; }
+
+/* Avatar */
+.message__avatar {
+  width: 32px; height: 32px;
+  border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
-.message-user .message-content {
-    background-color: #ecf5ff;
-    border-bottom-right-radius: 2px;
+.message__avatar--user {
+  background: var(--brand-100);
+  color: var(--brand-600);
 }
-.message-assistant .message-content {
-    border-bottom-left-radius: 2px;
-    background-color: #f6f8fa;
+.message__avatar--bot {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
-.role-label {
-    font-size: 12px;
-    color: #999;
-    margin-bottom: 4px;
+
+/* Body */
+.message__body {
+  max-width: 80%;
+  min-width: 0;
 }
-.sql-block {
-  background: #282c34;
-  color: #abb2bf;
-  padding: 12px;
-  border-radius: 6px;
-  margin-top: 12px;
-  font-family: 'Fira Code', monospace;
+.message__role {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.message--user .message__role { text-align: right; }
+
+/* Markdown body */
+.markdown-body {
+  background: var(--bg-primary);
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+.message--user .markdown-body {
+  background: var(--brand-50);
+  border-color: var(--brand-100);
+}
+
+/* Streaming cursor animation */
+.markdown-body--streaming {
+  display: flex;
+  align-items: flex-end;
+}
+.markdown-body--streaming > div {
+  min-width: 0;
+}
+.markdown-body--placeholder {
+  color: var(--text-muted);
+}
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--brand-500);
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+  flex-shrink: 0;
+  vertical-align: text-bottom;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* ===== Thinking Block ===== */
+.thinking-block {
+  margin-bottom: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+.thinking-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: background .15s;
+}
+.thinking-toggle:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+.thinking-toggle svg:first-child {
+  color: #f59e0b;
+}
+.thinking-label {
+  font-weight: 500;
+}
+.thinking-duration {
+  color: var(--text-muted);
+  opacity: .7;
+}
+.thinking-chevron {
+  margin-left: auto;
+  transition: transform .2s;
+}
+.thinking-chevron--open {
+  transform: rotate(180deg);
+}
+.thinking-content {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-light);
   font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ===== SQL Block ===== */
+.sql-block {
+  margin-top: 10px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid #2d2d3f;
+}
+.sql-block__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #1e1e2e;
+  color: #7c8db5;
+  font-size: 12px;
+  font-weight: 600;
+}
+.sql-block__header svg { color: #60a5fa; }
+.sql-block__copy {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color .15s;
+}
+.sql-block__copy:hover { color: #e2e8f0; }
+.sql-block__code {
+  margin: 0;
+  background: var(--bg-code);
+  color: #abb2bf;
+  padding: 14px 18px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
   overflow-x: auto;
 }
-.sql-header {
-    margin-bottom: 8px;
-    font-weight: bold;
-    color: #61afef;
-    font-size: 12px;
-    text-transform: uppercase;
-}
+
+/* ===== Analysis Block ===== */
 .analysis-block {
-    background: #fffbe6;
-    border-left: 4px solid #faad14;
-    padding: 12px;
-    margin-top: 12px;
-    border-radius: 4px;
-    font-size: 14px;
-    line-height: 1.6;
+  margin-top: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  overflow: hidden;
 }
-.analysis-header {
-    margin-bottom: 6px;
-    color: #d48806;
+.analysis-block__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b45309;
+  border-bottom: 1px solid #fde68a;
 }
+.analysis-block__header svg { color: #f59e0b; }
+.analysis-block__content {
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #78350f;
+}
+
+/* ===== Table Block ===== */
+.table-block {
+  margin-top: 10px;
+}
+.table-block__wrapper {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+}
+.table-block__footer {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ===== Chart Block ===== */
+.chart-block { margin-top: 10px; }
+.chart-canvas {
+  width: 100%;
+  height: 320px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
+}
+.chart-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-default);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+.chart-placeholder__text { font-size: 13px; }
+
+/* ===== Suggestions ===== */
 .suggestions {
-    margin-top: 16px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
-.mt-2 { margin-top: 8px; }
-.mt-1 { margin-top: 4px; }
-.text-xs { font-size: 12px; }
-.text-gray-500 { color: #888; }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
-.justify-center { justify-content: center; }
-.p-4 { padding: 16px; }
-.bg-gray-50 { background-color: #f9fafb; }
-.rounded { border-radius: 4px; }
-.border { border-width: 1px; border-style: solid; }
-.border-gray-200 { border-color: #e5e7eb; }
-.text-sm { font-size: 14px; }
-.mb-2 { margin-bottom: 8px; }
+.suggestion-chip {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-default);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.suggestion-chip:hover {
+  background: var(--brand-50);
+  border-color: var(--brand-200);
+  color: var(--brand-600);
+}
+
+.mt-3 { margin-top: 12px; }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .message__body { max-width: 90%; }
+}
 </style>

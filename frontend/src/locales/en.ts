@@ -1,4 +1,4 @@
-export default {
+﻿export default {
     common: {
         confirm: 'Confirm',
         cancel: 'Cancel',
@@ -28,11 +28,13 @@ export default {
         manageLlmConfigs: 'Manage LLM Configs...',
         noDb: 'No DB',
         startChat: 'Start Chat',
-        selectDb: 'Choose a database to start chatting:',
+        selectDb: 'Choose a database to start chatting',
         selectLlmConfig: 'Select LLM Config:',
         welcomeTitle: 'MySqlBot Intelligence',
         welcomeText: 'I can analyze your data, generate SQL snippets, create charts, and answer questions.',
         inputPlaceholder: 'Ask a question about your data...',
+        deepThinking: 'Deep Thinking',
+        deepThinkingHint: 'Use the reasoning model and stream the thinking process in real time (slower response)',
         examples: {
             topProducts: 'List top 5 products by sales volume',
             trendAnalysis: 'Show monthly trend for last year',
@@ -51,6 +53,8 @@ export default {
         tabs: {
             llm: 'LLM Config',
             database: 'Database Config',
+            wecom: 'WeCom Integration',
+            feishu: 'Feishu Integration',
             system: 'System'
         },
         llm: {
@@ -81,14 +85,23 @@ export default {
             password: 'Password',
             database: 'Database',
             dbType: 'Type',
-            dbTypeOptions: {
-                postgresql: 'PostgreSQL',
-                mysql: 'MySQL'
-            },
             test: 'Test Connection',
             sync: 'Sync Schema',
             status: 'Status',
             actions: 'Actions'
+        },
+        wecom: {
+            corpId: 'Corp ID',
+            agentId: 'Agent ID',
+            secret: 'App Secret',
+            token: 'Callback Token',
+            enabled: 'Enable WeCom'
+        },
+        feishu: {
+            appId: 'App ID',
+            appSecret: 'App Secret',
+            encryptKey: 'Encrypt Key',
+            enabled: 'Enable Feishu'
         },
         system: {
             language: 'Language'

@@ -3,6 +3,8 @@ package com.example.mysqlbot.util;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -11,32 +13,47 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Generic OpenAI-compatible HTTP client (DeepSeek / OpenAI / Tongyi Qianwen etc.)
- * Supports DeepSeek thinking mode and reasoning_content parsing.
- * Configured with connect/read timeouts and retry logic.
+ * Supports DeepSeek thinking mode, reasoning_content parsing, and SSE streaming.
  */
 @Slf4j
 public class OpenAiLlmUtil {
 
     private static final int MAX_RETRIES = 2;
     private static final long RETRY_DELAY_MS = 1000;
+    private static final ObjectMapper STREAM_MAPPER = new ObjectMapper();
 
     private final RestClient restClient;
+    private final HttpClient streamClient;
+    private final String baseUrl;
+    private final String apiKey;
     private final String model;
 
     public OpenAiLlmUtil(String baseUrl, String apiKey, String model) {
         String cleanBase = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.baseUrl = cleanBase;
+        this.apiKey = apiKey;
         this.model = model;
         this.restClient = RestClient.builder()
                 .baseUrl(cleanBase)
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .requestFactory(createRequestFactory())
+                .build();
+        this.streamClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
                 .build();
     }
 
@@ -81,6 +98,91 @@ public class OpenAiLlmUtil {
         return executeWithRetry(request);
     }
 
+    /**
+     * Streaming chat. Calls the OpenAI-compatible API with stream=true and delivers
+     * tokens in real-time via the provided callback.
+     *
+     * @param messages    chat messages
+     * @param temperature sampling temperature
+     * @param modelOverride optional model name override
+     * @param callback    receives each token with type "thinking" or "content"
+     * @return the full accumulated response text
+     */
+    public String chatStream(List<Map<String, String>> messages, double temperature,
+                             String modelOverride, StreamCallback callback) {
+        String effectiveModel = (modelOverride != null && !modelOverride.isBlank()) ? modelOverride : this.model;
+        ChatRequest request = new ChatRequest();
+        request.setModel(effectiveModel);
+        request.setTemperature(temperature);
+        request.setMessages(messages);
+        request.setStream(true);
+
+        log.debug("OpenAiLlmUtil stream request: model={}, messages={}", effectiveModel, messages.size());
+
+        try {
+            String body = STREAM_MAPPER.writeValueAsString(request);
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/chat/completions"))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                    .timeout(Duration.ofMinutes(3))
+                    .build();
+
+            HttpResponse<java.io.InputStream> httpResp = streamClient.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
+            if (httpResp.statusCode() != 200) {
+                String errBody = new String(httpResp.body().readAllBytes(), StandardCharsets.UTF_8);
+                throw new RuntimeException("LLM stream HTTP " + httpResp.statusCode() + ": " + errBody);
+            }
+
+            StringBuilder fullContent = new StringBuilder();
+            StringBuilder fullThinking = new StringBuilder();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(httpResp.body(), StandardCharsets.UTF_8));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.startsWith("data:")) continue;
+                String data = line.substring(5).trim();
+                if ("[DONE]".equals(data)) break;
+
+                try {
+                    JsonNode chunk = STREAM_MAPPER.readTree(data);
+                    JsonNode choices = chunk.get("choices");
+                    if (choices == null || choices.isEmpty()) continue;
+                    JsonNode delta = choices.get(0).get("delta");
+                    if (delta == null) continue;
+
+                    // DeepSeek reasoning_content
+                    JsonNode reasoningNode = delta.get("reasoning_content");
+                    if (reasoningNode != null && !reasoningNode.isNull() && !reasoningNode.asText().isEmpty()) {
+                        String token = reasoningNode.asText();
+                        fullThinking.append(token);
+                        callback.onToken("thinking", token);
+                    }
+
+                    // Standard content
+                    JsonNode contentNode = delta.get("content");
+                    if (contentNode != null && !contentNode.isNull() && !contentNode.asText().isEmpty()) {
+                        String token = contentNode.asText();
+                        fullContent.append(token);
+                        callback.onToken("content", token);
+                    }
+                } catch (Exception e) {
+                    log.trace("Failed to parse SSE chunk: {}", data, e);
+                }
+            }
+
+            // If there was thinking content but no regular content, return thinking
+            if (fullContent.isEmpty() && fullThinking.length() > 0) {
+                return fullThinking.toString();
+            }
+            return fullContent.toString();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("LLM stream call failed: " + e.getMessage(), e);
+        }
+    }
+
     private String executeWithRetry(ChatRequest request) {
         Exception lastException = null;
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -119,6 +221,12 @@ public class OpenAiLlmUtil {
         }
         log.error("OpenAiLlmUtil request failed after {} attempts", MAX_RETRIES + 1);
         throw new RuntimeException("LLM call failed: " + lastException.getMessage(), lastException);
+    }
+
+    // ===== Streaming callback interface =====
+
+    public interface StreamCallback {
+        void onToken(String type, String token);
     }
 
     // ===== DTOs =====
