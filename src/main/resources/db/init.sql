@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS table_relation (
     to_column       VARCHAR(200) NOT NULL,
     source          VARCHAR(20) NOT NULL,   -- fk / naming / llm / manual
     confidence      NUMERIC(3,2) DEFAULT 1.0,
-    is_active       SMALLINT DEFAULT 1,
+    is_active       INTEGER DEFAULT 1,
     created_at      TIMESTAMP DEFAULT NOW(),
     CONSTRAINT uk_table_relation UNIQUE (data_source_id, from_table, from_column, to_table, to_column)
 );

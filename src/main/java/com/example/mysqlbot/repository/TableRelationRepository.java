@@ -45,4 +45,15 @@ public interface TableRelationRepository extends JpaRepository<TableRelation, Lo
     @Query("DELETE FROM TableRelation r WHERE r.dataSourceId = :dataSourceId AND r.source IN :sources")
     void deleteByDataSourceIdAndSourceIn(@Param("dataSourceId") Long dataSourceId,
                                          @Param("sources") List<String> sources);
+
+    /**
+     * 安全删除指定来源的关系记录，空 sources 列表时直接返回（避免 IN () 语法错误）。
+     * 保留 source='manual' 记录，由调用方控制传入的 sources 列表。
+     */
+    default void safelyDeleteByDataSourceIdAndSourceIn(Long dataSourceId, List<String> sources) {
+        if (sources == null || sources.isEmpty()) {
+            return;
+        }
+        deleteByDataSourceIdAndSourceIn(dataSourceId, sources);
+    }
 }
