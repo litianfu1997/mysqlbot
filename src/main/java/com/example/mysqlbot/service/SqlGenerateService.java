@@ -1,6 +1,7 @@
 package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.config.AppConfig;
+import com.example.mysqlbot.model.ChatMessage;
 import com.example.mysqlbot.model.DataSource;
 import com.example.mysqlbot.model.SqlExample;
 import com.example.mysqlbot.model.DatabaseDialect;
@@ -9,6 +10,7 @@ import com.example.mysqlbot.model.TermGlossary;
 import com.example.mysqlbot.repository.DataSourceRepository;
 import com.example.mysqlbot.repository.SqlExampleRepository;
 import com.example.mysqlbot.repository.TermGlossaryRepository;
+import com.example.mysqlbot.util.OpenAiLlmUtil;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,13 +23,20 @@ import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
  * SQL generation service using LLM + RAG to convert natural language to SQL.
+ * Uses structured multi-turn messages (system/user/assistant array) as required by DeepSeek's
+ * multi-round chat API — see https://api-docs.deepseek.com/zh-cn/guides/multi_round_chat
  */
 @Slf4j
 @Service
@@ -56,52 +65,176 @@ public class SqlGenerateService {
         log.info("SqlGenerateService: prompt template cached ({} chars)", sqlGeneratePrompt.length());
     }
 
+    // ---------------------------------------------------------------------------
+    // Public API — conversation-list based (multi-turn)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Synchronous SQL generation.
+     *
+     * @param question     current user question (used for RAG retrieval)
+     * @param dataSourceId target data source
+     * @param conversation recent chat history as ChatMessage list; the current user question
+     *                     must already be appended as the last element by the caller
+     * @param llmConfig    LLM config to use (null → global default)
+     */
+    public SqlGenerateResult generate(String question, Long dataSourceId,
+                                      List<ChatMessage> conversation, LlmConfig llmConfig) {
+        List<Map<String, String>> messages = buildMessages(question, dataSourceId, conversation);
+        double temperature = llmConfig != null
+                ? llmConfig.getTemperature().doubleValue()
+                : appConfig.getLlm().getTemperature();
+
+        String llmResponse = llmService.chatWithMessages(messages, temperature, llmConfig);
+        log.debug("LLM response:\n{}", llmResponse);
+        return parseLlmResponse(llmResponse, dataSourceId);
+    }
+
+    /**
+     * Streaming SQL generation. Streams LLM tokens (thinking + content) via callback,
+     * then parses the accumulated response to extract SQL.
+     */
+    public SqlGenerateResult generateStream(String question, Long dataSourceId,
+                                            List<ChatMessage> conversation,
+                                            LlmConfig llmConfig, boolean thinking,
+                                            OpenAiLlmUtil.StreamCallback tokenCallback) {
+        List<Map<String, String>> messages = buildMessages(question, dataSourceId, conversation);
+        double temperature = llmConfig != null
+                ? llmConfig.getTemperature().doubleValue()
+                : appConfig.getLlm().getTemperature();
+
+        String llmResponse = llmService.chatStreamWithMessages(messages, temperature, llmConfig, thinking, tokenCallback);
+        log.debug("LLM stream response complete ({} chars)", llmResponse.length());
+        return parseLlmResponse(llmResponse, dataSourceId);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Backward-compatible overloads (String chatHistory) — kept for any callers
+    // outside the main chat flow; internally converts to a single user message.
+    // ---------------------------------------------------------------------------
+
     public SqlGenerateResult generate(String question, Long dataSourceId, String chatHistory) {
         return generate(question, dataSourceId, chatHistory, null);
     }
 
-    public SqlGenerateResult generate(String question, Long dataSourceId, String chatHistory, LlmConfig llmConfig) {
-        boolean ragEnabled = appConfig.getRag().isEnabled();
+    public SqlGenerateResult generate(String question, Long dataSourceId,
+                                      String chatHistory, LlmConfig llmConfig) {
+        List<ChatMessage> conversation = legacyHistoryToConversation(chatHistory, question);
+        return generate(question, dataSourceId, conversation, llmConfig);
+    }
 
-        // Resolve database dialect for this data source
+    // ---------------------------------------------------------------------------
+    // Core: build structured messages array
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Builds the messages array for the LLM:
+     * <pre>
+     *   [ system: static instructions + schema context,
+     *     user:      history turn 1,
+     *     assistant: history turn 1 (reconstructed JSON),
+     *     ...,
+     *     user:      current question ]   ← last element of conversation
+     * </pre>
+     */
+    private List<Map<String, String>> buildMessages(String question, Long dataSourceId,
+                                                    List<ChatMessage> conversation) {
+        boolean ragEnabled = appConfig.getRag().isEnabled();
         DatabaseDialect dialect = resolveDialect(dataSourceId);
 
-        // 1. RAG retrieval
+        // RAG retrieval (uses question for similarity search)
         String schemaContext;
+        Set<String> involvedTableNames;
         if (ragEnabled) {
-            List<VectorStoreService.VectorSearchResult> schemaDocs = ragService.retrieveRelevantSchema(question, dataSourceId);
+            List<VectorStoreService.VectorSearchResult> schemaDocs =
+                    ragService.retrieveRelevantSchema(question, dataSourceId);
+            // 图扩展：补充关联表
+            schemaDocs = ragService.expandWithRelations(dataSourceId, schemaDocs);
             schemaContext = ragService.buildSchemaContext(schemaDocs);
-            log.debug("RAG retrieved Schema:\n{}", schemaContext);
+            // 提取所有涉及的表名，用于构建关系上下文
+            involvedTableNames = schemaDocs.stream()
+                    .map(doc -> (String) doc.getMetadata().getOrDefault("tableName", ""))
+                    .filter(s -> !s.isBlank())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            log.debug("RAG retrieved schema (after graph expansion):\n{}", schemaContext);
         } else {
             schemaContext = loadFullSchema(dataSourceId);
-            log.debug("RAG disabled, skipping retrieval");
+            involvedTableNames = null; // RAG 关闭时加载全部关系
+            log.debug("RAG disabled, using full schema");
         }
 
-        // 2. Build context
+        String relationContext = ragService.buildRelationContext(dataSourceId, involvedTableNames);
         String termGlossary = buildTermGlossaryContext(dataSourceId);
-        String sqlExamples = ragEnabled ? buildSqlExamplesContext(question, dataSourceId) : loadSqlExamples(dataSourceId);
+        String sqlExamples = ragEnabled
+                ? buildSqlExamplesContext(question, dataSourceId)
+                : loadSqlExamples(dataSourceId);
 
-        // 3. Fill prompt template with dialect-aware engine name and quoting rules
-        String prompt = sqlGeneratePrompt
+        // System message: static instructions with schema context
+        String systemContent = sqlGeneratePrompt
                 .replace("{dbEngine}", dialect.getDisplayName())
                 .replace("{quoteRules}", dialect.getQuotingRules())
                 .replace("{schemaContext}", schemaContext)
+                .replace("{relationContext}", relationContext)
                 .replace("{termGlossary}", termGlossary)
-                .replace("{sqlExamples}", sqlExamples)
-                .replace("{chatHistory}", chatHistory != null ? chatHistory : "(no chat history)")
-                .replace("{question}", question);
+                .replace("{sqlExamples}", sqlExamples);
 
-        // 4. Call LLM
-        String llmResponse;
-        double temperature = llmConfig != null ? llmConfig.getTemperature().doubleValue() : appConfig.getLlm().getTemperature();
-        if (llmConfig != null) {
-            llmResponse = llmService.chatWithConfig(null, prompt, temperature, llmConfig);
-        } else {
-            llmResponse = llmService.chat(prompt, temperature);
+        List<Map<String, String>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", systemContent));
+
+        // History turns: user / assistant alternating
+        if (conversation != null) {
+            for (ChatMessage msg : conversation) {
+                if ("user".equals(msg.getRole())) {
+                    Map<String, String> m = new HashMap<>();
+                    m.put("role", "user");
+                    m.put("content", msg.getContent() != null ? msg.getContent() : "");
+                    messages.add(m);
+                } else if ("assistant".equals(msg.getRole())) {
+                    Map<String, String> m = new HashMap<>();
+                    m.put("role", "assistant");
+                    m.put("content", reconstructAssistantJson(msg));
+                    messages.add(m);
+                }
+            }
         }
-        log.debug("LLM response:\n{}", llmResponse);
 
-        // 5. Extract SQL and explanation
+        log.debug("buildMessages: system + {} history turns, last role={}",
+                messages.size() - 1,
+                messages.isEmpty() ? "none" : messages.get(messages.size() - 1).get("role"));
+        return messages;
+    }
+
+    /**
+     * Reconstructs the assistant's previous response as the same JSON format that the model
+     * is expected to produce, so the model can reference its own prior output clearly.
+     * - Successful turn (has SQL): {"success":true,"sql":"...","brief":"..."}
+     * - Failed turn             : {"success":false,"message":"..."}
+     */
+    private String reconstructAssistantJson(ChatMessage msg) {
+        try {
+            if (msg.getSqlQuery() != null && !msg.getSqlQuery().isBlank()) {
+                Map<String, Object> json = new HashMap<>();
+                json.put("success", true);
+                json.put("sql", msg.getSqlQuery());
+                json.put("brief", msg.getContent() != null ? msg.getContent() : "");
+                return objectMapper.writeValueAsString(json);
+            } else {
+                Map<String, Object> json = new HashMap<>();
+                json.put("success", false);
+                json.put("message", msg.getContent() != null ? msg.getContent() : "");
+                return objectMapper.writeValueAsString(json);
+            }
+        } catch (Exception e) {
+            log.warn("reconstructAssistantJson failed, falling back to raw content: {}", e.getMessage());
+            return msg.getContent() != null ? msg.getContent() : "";
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Response parsing (unchanged)
+    // ---------------------------------------------------------------------------
+
+    private SqlGenerateResult parseLlmResponse(String llmResponse, Long dataSourceId) {
         String sql = null;
         String explanation = llmResponse;
 
@@ -128,6 +261,8 @@ public class SqlGenerateService {
             sql = extractSqlOld(llmResponse);
         }
 
+        String schemaContext = ragService != null ? "" : loadFullSchema(dataSourceId);
+
         return SqlGenerateResult.builder()
                 .sql(sql)
                 .explanation(explanation)
@@ -136,18 +271,13 @@ public class SqlGenerateService {
                 .build();
     }
 
-    private DatabaseDialect resolveDialect(Long dataSourceId) {
-        return dataSourceRepository.findById(dataSourceId)
-                .map(DataSource::getDialect)
-                .orElse(DatabaseDialect.POSTGRESQL);
-    }
-
     private String extractJson(String response) {
         if (response == null) return null;
         String trimmed = response.trim();
 
-        // Try to extract from ```json ... ``` blocks first (find the last one, which is usually the answer)
-        java.util.regex.Pattern jsonBlockPattern = java.util.regex.Pattern.compile("```(?:json)?\\s*\\n?(\\{[\\s\\S]*?\\})\\s*```");
+        // Try to extract from ```json ... ``` blocks first (find the last one)
+        java.util.regex.Pattern jsonBlockPattern = java.util.regex.Pattern.compile(
+                "```(?:json)?\\s*\\n?(\\{[\\s\\S]*?\\})\\s*```");
         java.util.regex.Matcher blockMatcher = jsonBlockPattern.matcher(trimmed);
         String lastBlock = null;
         while (blockMatcher.find()) {
@@ -156,7 +286,6 @@ public class SqlGenerateService {
         if (lastBlock != null) return lastBlock;
 
         // Fallback: find all top-level JSON objects by balanced brace counting
-        // Return the one that contains "success" key
         for (int i = 0; i < trimmed.length(); i++) {
             if (trimmed.charAt(i) == '{') {
                 int depth = 1;
@@ -176,7 +305,6 @@ public class SqlGenerateService {
             }
         }
 
-        // Last resort: first { to last }
         int start = response.indexOf('{');
         int end = response.lastIndexOf('}');
         if (start >= 0 && end > start) return response.substring(start, end + 1);
@@ -195,6 +323,16 @@ public class SqlGenerateService {
         return null;
     }
 
+    // ---------------------------------------------------------------------------
+    // Schema / glossary / example helpers (unchanged)
+    // ---------------------------------------------------------------------------
+
+    private DatabaseDialect resolveDialect(Long dataSourceId) {
+        return dataSourceRepository.findById(dataSourceId)
+                .map(DataSource::getDialect)
+                .orElse(DatabaseDialect.POSTGRESQL);
+    }
+
     private String buildTermGlossaryContext(Long dataSourceId) {
         List<TermGlossary> terms = termGlossaryRepository.findByDataSourceIdOrDataSourceIdIsNull(dataSourceId);
         if (terms.isEmpty()) return "(no specific business terms)";
@@ -204,10 +342,10 @@ public class SqlGenerateService {
     }
 
     private String buildSqlExamplesContext(String question, Long dataSourceId) {
-        List<VectorStoreService.VectorSearchResult> examples = ragService.retrieveSimilarExamples(question, dataSourceId);
+        List<VectorStoreService.VectorSearchResult> examples =
+                ragService.retrieveSimilarExamples(question, dataSourceId);
         return ragService.buildExamplesContext(examples);
     }
-
 
     private String loadFullSchema(Long dataSourceId) {
         try {
@@ -246,7 +384,36 @@ public class SqlGenerateService {
         if (examples.isEmpty()) return "(no SQL examples)";
         return examples.stream()
                 .map(e -> "Q: " + e.getQuestion() + "\nSQL: " + e.getSqlQuery())
-                .collect(java.util.stream.Collectors.joining("\n\n"));
+                .collect(Collectors.joining("\n\n"));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Legacy helper: convert flat history string → minimal ChatMessage list
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Converts the legacy flat history string into a ChatMessage list ending with
+     * a user message for the current question.  Used only by the backward-compatible
+     * overloads that still accept a String chatHistory.
+     */
+    private List<ChatMessage> legacyHistoryToConversation(String chatHistory, String currentQuestion) {
+        List<ChatMessage> conversation = new ArrayList<>();
+        if (chatHistory != null && !chatHistory.isBlank() && !"(no chat history)".equals(chatHistory)) {
+            // The legacy format is "User: ...\nAssistant: ...\n..."
+            // We treat the whole block as a single synthetic user context message to keep the
+            // contract valid (last message must be user), then append current question.
+            ChatMessage historyCtx = ChatMessage.builder()
+                    .role("user")
+                    .content("[Previous conversation]\n" + chatHistory)
+                    .build();
+            conversation.add(historyCtx);
+        }
+        ChatMessage current = ChatMessage.builder()
+                .role("user")
+                .content(currentQuestion)
+                .build();
+        conversation.add(current);
+        return conversation;
     }
 
     private static String loadResource(String path) {
@@ -256,6 +423,10 @@ public class SqlGenerateService {
             throw new RuntimeException("Failed to load resource: " + path, e);
         }
     }
+
+    // ---------------------------------------------------------------------------
+    // Result DTO
+    // ---------------------------------------------------------------------------
 
     @lombok.Data
     @lombok.Builder

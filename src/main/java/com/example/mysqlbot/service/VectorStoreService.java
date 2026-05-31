@@ -142,6 +142,48 @@ public class VectorStoreService {
                 });
     }
 
+    /**
+     * 按表名精确加载 Schema 文档（用于图扩展时补全关联表）。
+     * 空列表时直接返回空列表。
+     */
+    public List<VectorSearchResult> loadSchemaByTableNames(Long dataSourceId, List<String> tableNames) {
+        if (tableNames == null || tableNames.isEmpty()) {
+            return List.of();
+        }
+        String sql = """
+                SELECT id, content, metadata,
+                       1.0 AS similarity
+                FROM vector_store
+                WHERE data_source_id = ?
+                  AND doc_type = 'schema'
+                  AND metadata->>'tableName' = ANY(?)
+                """;
+        return jdbcTemplate.query(sql,
+                ps -> {
+                    ps.setLong(1, dataSourceId);
+                    // PostgreSQL array via JDBC
+                    java.sql.Array pgArray = ps.getConnection().createArrayOf("text", tableNames.toArray(new String[0]));
+                    ps.setArray(2, pgArray);
+                },
+                (rs, rowNum) -> {
+                    VectorSearchResult r = new VectorSearchResult();
+                    r.setId(rs.getLong("id"));
+                    r.setContent(rs.getString("content"));
+                    r.setSimilarity(rs.getDouble("similarity"));
+                    try {
+                        String meta = rs.getString("metadata");
+                        if (meta != null) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> m = objectMapper.readValue(meta, Map.class);
+                            r.setMetadata(m);
+                        }
+                    } catch (Exception e) {
+                        r.setMetadata(new java.util.HashMap<>());
+                    }
+                    return r;
+                });
+    }
+
     // ===== Utility Methods =====
 
     private void setInsertParams(PreparedStatement ps, String content, Long dataSourceId,
