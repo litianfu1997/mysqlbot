@@ -2,7 +2,9 @@ package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.model.DataSource;
 import com.example.mysqlbot.model.DatabaseDialect;
+import com.example.mysqlbot.model.TableRelation;
 import com.example.mysqlbot.repository.DataSourceRepository;
+import com.example.mysqlbot.repository.TableRelationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,10 +15,12 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Schema extraction and vectorization service.
  * Extracts table structure from target databases, vectorizes with embedding, and stores in pgvector.
+ * Also performs two-pass relation inference after schema collection.
  */
 @Slf4j
 @Service
@@ -25,6 +29,9 @@ public class SchemaService {
 
     private final DataSourceRepository dataSourceRepository;
     private final VectorStoreService vectorStoreService;
+    private final RelationInferenceService relationInferenceService;
+    private final TableRelationRepository tableRelationRepository;
+    private final LlmService llmService;
 
     private final java.util.Map<Long, SyncProgress> progressMap = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -69,6 +76,9 @@ public class SchemaService {
         List<String> contentList = new ArrayList<>();
         List<Map<String, Object>> metaList = new ArrayList<>();
 
+        // Pass 1: collect TableMeta (for relation inference) alongside schema text
+        List<RelationInferenceService.TableMeta> tableMetas = new ArrayList<>();
+
         try {
             try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
                 DatabaseMetaData metaData = conn.getMetaData();
@@ -91,6 +101,7 @@ public class SchemaService {
                         }
                         schemaText.append("Columns:\n");
 
+                        List<String> columnNames = new ArrayList<>();
                         try (ResultSet columns = metaData.getColumns(ds.getDbName(), tableSchema, tableName, "%")) {
                             while (columns.next()) {
                                 String colName = columns.getString("COLUMN_NAME");
@@ -98,6 +109,7 @@ public class SchemaService {
                                 String colComment = columns.getString("REMARKS");
                                 String nullable = "YES".equals(columns.getString("IS_NULLABLE")) ? "nullable" : "not null";
 
+                                columnNames.add(colName);
                                 schemaText.append("  - ").append(colName)
                                         .append(" (").append(colType).append(", ").append(nullable).append(")");
                                 if (colComment != null && !colComment.isEmpty()) {
@@ -127,6 +139,17 @@ public class SchemaService {
                         contentList.add(schemaText.toString());
 
                         progress.setTotalTables(contentList.size());
+
+                        // Build TableMeta for relation inference
+                        List<RelationInferenceService.ForeignKeyInfo> fkList =
+                                extractImportedKeys(metaData, ds, dialect, tableSchema, tableName, fullTableName);
+                        RelationInferenceService.TableMeta meta = new RelationInferenceService.TableMeta();
+                        meta.tableName = fullTableName;
+                        meta.simpleTableName = tableName;
+                        meta.columns = columnNames;
+                        meta.primaryKeys = primaryKeys;
+                        meta.importedKeys = fkList;
+                        tableMetas.add(meta);
                     }
                 }
             }
@@ -136,6 +159,14 @@ public class SchemaService {
                 progress.setCompleted(true);
                 progress.setStatus("done");
                 return;
+            }
+
+            // Pass 2: infer and persist relations (connection already closed)
+            try {
+                inferAndSaveRelations(dataSourceId, tableMetas, dialect.getDisplayName());
+            } catch (Exception e) {
+                log.warn("Relation inference failed for dataSourceId={}, continuing schema sync. Reason: {}",
+                        dataSourceId, e.getMessage());
             }
 
             progress.setStatus("embedding");
@@ -167,6 +198,86 @@ public class SchemaService {
             log.error("Schema sync failed", e);
             throw new RuntimeException("Sync failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Reads physical foreign-key constraints for a single table via JDBC metadata.
+     */
+    private List<RelationInferenceService.ForeignKeyInfo> extractImportedKeys(
+            DatabaseMetaData metaData, DataSource ds, DatabaseDialect dialect,
+            String tableSchema, String tableName, String fullTableName) {
+        List<RelationInferenceService.ForeignKeyInfo> result = new ArrayList<>();
+        try (ResultSet fks = metaData.getImportedKeys(ds.getDbName(), tableSchema, tableName)) {
+            while (fks.next()) {
+                String fkColumn      = fks.getString("FKCOLUMN_NAME");
+                String pkTableName   = fks.getString("PKTABLE_NAME");
+                String pkTableSchema = fks.getString("PKTABLE_SCHEM");
+                String pkColumn      = fks.getString("PKCOLUMN_NAME");
+                String pkFullTable   = buildQualifiedTableName(dialect, pkTableSchema, pkTableName, ds.getDbName());
+                result.add(new RelationInferenceService.ForeignKeyInfo(fkColumn, pkFullTable, pkColumn));
+            }
+        } catch (Exception e) {
+            log.warn("Cannot extract foreign keys for table [{}]: {}", fullTableName, e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * Runs all three inference strategies and persists the deduplicated results.
+     * Manual relations are never touched.
+     */
+    private void inferAndSaveRelations(Long dataSourceId,
+                                       List<RelationInferenceService.TableMeta> tableMetas,
+                                       String dbEngine) {
+        // 1. Remove previously auto-inferred relations (fk / naming / llm); keep manual
+        tableRelationRepository.safelyDeleteByDataSourceIdAndSourceIn(
+                dataSourceId, List.of("fk", "naming", "llm"));
+
+        // 2. Run all three strategies
+        List<RelationInferenceService.InferredRelation> all = new ArrayList<>();
+        all.addAll(relationInferenceService.inferFromForeignKeys(tableMetas));
+        all.addAll(relationInferenceService.inferFromNamingConventions(tableMetas));
+        all.addAll(relationInferenceService.inferFromLlm(tableMetas, llmService, dbEngine));
+
+        // 3. Deduplicate: fk wins over llm wins over naming (insert fk first, putIfAbsent keeps first)
+        Map<String, RelationInferenceService.InferredRelation> dedup = new LinkedHashMap<>();
+        for (String src : List.of("fk", "llm", "naming")) {
+            for (RelationInferenceService.InferredRelation r : all) {
+                if (!src.equals(r.getSource())) continue;
+                String key = r.getFromTable() + "|" + r.getFromColumn()
+                        + "|" + r.getToTable() + "|" + r.getToColumn();
+                dedup.putIfAbsent(key, r);
+            }
+        }
+
+        // 4. Exclude keys already covered by manual relations
+        Set<String> manualKeys = tableRelationRepository
+                .findByDataSourceIdAndIsActive(dataSourceId, 1)
+                .stream()
+                .filter(r -> "manual".equals(r.getSource()))
+                .map(r -> r.getFromTable() + "|" + r.getFromColumn()
+                        + "|" + r.getToTable() + "|" + r.getToColumn())
+                .collect(Collectors.toSet());
+
+        List<TableRelation> toSave = dedup.values().stream()
+                .filter(r -> !manualKeys.contains(
+                        r.getFromTable() + "|" + r.getFromColumn()
+                                + "|" + r.getToTable() + "|" + r.getToColumn()))
+                .map(r -> TableRelation.builder()
+                        .dataSourceId(dataSourceId)
+                        .fromTable(r.getFromTable())
+                        .fromColumn(r.getFromColumn())
+                        .toTable(r.getToTable())
+                        .toColumn(r.getToColumn())
+                        .source(r.getSource())
+                        .confidence(r.getConfidence())
+                        .isActive(1)
+                        .build())
+                .collect(Collectors.toList());
+
+        tableRelationRepository.saveAll(toSave);
+        log.info("Table relation inference completed: {} relations saved (dataSourceId={})",
+                toSave.size(), dataSourceId);
     }
 
     /**
