@@ -230,7 +230,8 @@ export const dataSourceApi = {
     testConnection: (id: number) => api.post(`/datasource/${id}/test`),
     testAdHocConnection: (data: DataSource) => api.post('/datasource/test-connection', data),
     syncSchema: (id: number) => api.post(`/datasource/${id}/sync-schema`),
-    getSyncProgress: (id: number) => api.get(`/datasource/${id}/sync-progress`)
+    getSyncProgress: (id: number) => api.get(`/datasource/${id}/sync-progress`),
+    getSchemaTables: (id: number) => api.get<{ table: string; columns: string[] }[]>(`/datasource/${id}/schema-tables`)
 }
 
 export const llmConfigApi = {
@@ -250,5 +251,7 @@ export const tableRelationApi = {
     listByDataSource: (dataSourceId: number) => api.get<TableRelation[]>(`/relation/datasource/${dataSourceId}`),
     create: (data: TableRelation) => api.post<TableRelation>('/relation', data),
     update: (id: number, data: TableRelation) => api.put<TableRelation>(`/relation/${id}`, data),
-    delete: (id: number) => api.delete(`/relation/${id}`)
+    delete: (id: number) => api.delete(`/relation/${id}`),
+    generateAIPreview: (dataSourceId: number) => api.post<TableRelation[]>(`/relation/generate-ai/${dataSourceId}`),
+    saveAIRelations: (dataSourceId: number, relations: TableRelation[]) => api.post<TableRelation[]>(`/relation/generate-ai/${dataSourceId}/save`, relations)
 }

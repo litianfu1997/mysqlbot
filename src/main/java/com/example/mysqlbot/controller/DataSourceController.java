@@ -97,4 +97,17 @@ public class DataSourceController {
     public ResponseEntity<SchemaService.SyncProgress> getSyncProgress(@PathVariable("id") Long id) {
         return ResponseEntity.ok(schemaService.getSyncProgress(id));
     }
+
+    /**
+     * Lists every table with its column names (fully-qualified table names),
+     * used to populate the manual relation form dropdowns.
+     */
+    @GetMapping("/{id}/schema-tables")
+    public ResponseEntity<?> getSchemaTables(@PathVariable("id") Long id) {
+        try {
+            return ResponseEntity.ok(schemaService.listSchemaTables(id));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
 }

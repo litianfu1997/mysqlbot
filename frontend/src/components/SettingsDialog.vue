@@ -89,11 +89,14 @@
       <!-- Table Relations -->
       <el-tab-pane :label="t('settings.tabs.relation')" name="relation">
         <div class="tab-toolbar">
-          <el-select v-model="selectedDataSourceForRelations" :placeholder="t('settings.database.name')" @change="fetchRelations" style="width: 200px; margin-right: 12px">
+          <el-select v-model="selectedDataSourceForRelations" :placeholder="t('settings.database.name')" @change="onRelationDsChange" style="width: 200px; margin-right: 12px">
             <el-option v-for="ds in dataSources" :key="ds.id" :label="ds.name" :value="ds.id" />
           </el-select>
           <el-button type="primary" size="small" @click="openRelationDialog()" :disabled="!selectedDataSourceForRelations">
             <el-icon class="mr-1"><Plus /></el-icon> {{ t('settings.relation.add') }}
+          </el-button>
+          <el-button size="small" :loading="generatingRelations" :disabled="!selectedDataSourceForRelations" @click="generateRelationsWithAI">
+            <el-icon class="mr-1"><MagicStick /></el-icon> {{ t('settings.relation.generateAI') }}
           </el-button>
         </div>
         <el-table :data="tableRelations" style="width: 100%" v-loading="loadingRelations" size="small" class="settings-table">
@@ -271,16 +274,24 @@
     >
       <el-form :model="relationForm" label-width="100px" class="settings-form">
         <el-form-item :label="t('settings.relation.fromTable')">
-          <el-input v-model="relationForm.fromTable" placeholder="orders" />
+          <el-select v-model="relationForm.fromTable" filterable :loading="schemaTablesLoading" :placeholder="t('settings.relation.selectTable')" style="width: 100%" @change="relationForm.fromColumn = ''">
+            <el-option v-for="tb in schemaTables" :key="tb.table" :label="tb.table" :value="tb.table" />
+          </el-select>
         </el-form-item>
         <el-form-item :label="t('settings.relation.fromColumn')">
-          <el-input v-model="relationForm.fromColumn" placeholder="user_id" />
+          <el-select v-model="relationForm.fromColumn" filterable :placeholder="t('settings.relation.selectColumn')" style="width: 100%">
+            <el-option v-for="col in fromColumns" :key="col" :label="col" :value="col" />
+          </el-select>
         </el-form-item>
         <el-form-item :label="t('settings.relation.toTable')">
-          <el-input v-model="relationForm.toTable" placeholder="users" />
+          <el-select v-model="relationForm.toTable" filterable :loading="schemaTablesLoading" :placeholder="t('settings.relation.selectTable')" style="width: 100%" @change="relationForm.toColumn = ''">
+            <el-option v-for="tb in schemaTables" :key="tb.table" :label="tb.table" :value="tb.table" />
+          </el-select>
         </el-form-item>
         <el-form-item :label="t('settings.relation.toColumn')">
-          <el-input v-model="relationForm.toColumn" placeholder="id" />
+          <el-select v-model="relationForm.toColumn" filterable :placeholder="t('settings.relation.selectColumn')" style="width: 100%">
+            <el-option v-for="col in toColumns" :key="col" :label="col" :value="col" />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -288,13 +299,36 @@
         <el-button type="primary" :loading="savingRelation" @click="saveRelation">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- AI Relation Preview Dialog -->
+    <el-dialog
+      v-model="aiPreviewVisible"
+      :title="t('settings.relation.aiPreviewTitle')"
+      width="640px"
+      append-to-body
+    >
+      <el-table :data="aiCandidates" @selection-change="onAiSelectionChange" size="small" max-height="360" class="settings-table">
+        <el-table-column type="selection" width="40" />
+        <el-table-column prop="fromTable" :label="t('settings.relation.fromTable')" min-width="110" />
+        <el-table-column prop="fromColumn" :label="t('settings.relation.fromColumn')" min-width="110" />
+        <el-table-column prop="toTable" :label="t('settings.relation.toTable')" min-width="110" />
+        <el-table-column prop="toColumn" :label="t('settings.relation.toColumn')" min-width="110" />
+        <el-table-column prop="confidence" :label="t('settings.relation.confidence')" width="80" align="center">
+          <template #default="scope">{{ scope.row.confidence ? Number(scope.row.confidence).toFixed(2) : '-' }}</template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="aiPreviewVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="savingAiRelations" :disabled="!aiSelected.length" @click="saveAiRelations">{{ t('settings.relation.aiSaveSelected') }}</el-button>
+      </template>
+    </el-dialog>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { dataSourceApi, llmConfigApi, configApi, tableRelationApi, type DataSource, type LlmConfig, type TableRelation } from '@/api'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 
@@ -350,6 +384,21 @@ const savingRelation = ref(false)
 const relationForm = ref({
   dataSourceId: 0, fromTable: '', fromColumn: '', toTable: '', toColumn: '', source: 'manual'
 })
+
+// AI relation generation
+const generatingRelations = ref(false)
+const savingAiRelations = ref(false)
+const aiPreviewVisible = ref(false)
+const aiCandidates = ref<any[]>([])
+const aiSelected = ref<any[]>([])
+
+// Schema tables for manual-form dropdowns (cached per data source)
+const schemaTables = ref<{ table: string; columns: string[] }[]>([])
+const schemaTablesLoading = ref(false)
+const schemaLoadedForDs = ref<number | null>(null)
+
+const fromColumns = computed(() => schemaTables.value.find(t => t.table === relationForm.value.fromTable)?.columns || [])
+const toColumns = computed(() => schemaTables.value.find(t => t.table === relationForm.value.toTable)?.columns || [])
 
 const open = () => { visible.value = true; fetchConfigs() }
 defineExpose({ open })
@@ -536,13 +585,72 @@ async function fetchRelations() {
   finally { loadingRelations.value = false }
 }
 
+function onRelationDsChange() {
+  schemaTables.value = []
+  schemaLoadedForDs.value = null
+  fetchRelations()
+}
+
+async function loadSchemaTables() {
+  const dsId = selectedDataSourceForRelations.value
+  if (!dsId) return
+  if (schemaLoadedForDs.value === dsId && schemaTables.value.length) return
+  schemaTablesLoading.value = true
+  try {
+    const res = await dataSourceApi.getSchemaTables(dsId)
+    schemaTables.value = Array.isArray(res.data) ? res.data : []
+    schemaLoadedForDs.value = dsId
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || 'Failed to load tables')
+  } finally {
+    schemaTablesLoading.value = false
+  }
+}
+
 function openRelationDialog(row?: any) {
   if (row) { editingRelation.value = row; relationForm.value = { ...row } }
   else {
     editingRelation.value = null
     relationForm.value = { dataSourceId: selectedDataSourceForRelations.value || 0, fromTable: '', fromColumn: '', toTable: '', toColumn: '', source: 'manual' }
   }
+  loadSchemaTables()
   relationDialogVisible.value = true
+}
+
+async function generateRelationsWithAI() {
+  if (!selectedDataSourceForRelations.value) return
+  generatingRelations.value = true
+  try {
+    const res = await tableRelationApi.generateAIPreview(selectedDataSourceForRelations.value)
+    const data: any = res.data
+    if (!Array.isArray(data)) { ElMessage.error(data?.message || t('settings.relation.generateAIFailed')); return }
+    if (data.length === 0) { ElMessage.info(t('settings.relation.aiNoNew')); return }
+    aiCandidates.value = data
+    aiSelected.value = []
+    aiPreviewVisible.value = true
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || t('settings.relation.generateAIFailed'))
+  } finally {
+    generatingRelations.value = false
+  }
+}
+
+function onAiSelectionChange(rows: any[]) { aiSelected.value = rows }
+
+async function saveAiRelations() {
+  if (!selectedDataSourceForRelations.value || !aiSelected.value.length) return
+  savingAiRelations.value = true
+  try {
+    const res = await tableRelationApi.saveAIRelations(selectedDataSourceForRelations.value, aiSelected.value)
+    const count = Array.isArray(res.data) ? res.data.length : 0
+    ElMessage.success(t('settings.relation.aiSaveSuccess', { count }))
+    aiPreviewVisible.value = false
+    fetchRelations()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || t('settings.relation.generateAIFailed'))
+  } finally {
+    savingAiRelations.value = false
+  }
 }
 
 async function saveRelation() {

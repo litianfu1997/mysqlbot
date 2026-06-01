@@ -73,53 +73,9 @@ public class SchemaService {
         DatabaseDialect dialect = ds.getDialect();
         log.info("Starting schema sync for data source [{}] (type={})...", ds.getName(), dialect.getDisplayName());
 
-        // Pass 1: collect TableMeta for relation inference
-        List<RelationInferenceService.TableMeta> tableMetas = new ArrayList<>();
-
         try {
-            try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
-                DatabaseMetaData metaData = conn.getMetaData();
-
-                try (ResultSet tables = metaData.getTables(ds.getDbName(), null, "%", new String[] { "TABLE" })) {
-                    while (tables.next()) {
-                        String tableName = tables.getString("TABLE_NAME");
-                        String tableSchema = tables.getString("TABLE_SCHEM");
-                        String tableComment = tables.getString("REMARKS");
-
-                        // Build qualified table name with dialect-aware logic
-                        String fullTableName = buildQualifiedTableName(dialect, tableSchema, tableName, ds.getDbName());
-
-                        progress.setCurrentTable(fullTableName);
-
-                        List<String> columnNames = new ArrayList<>();
-                        try (ResultSet columns = metaData.getColumns(ds.getDbName(), tableSchema, tableName, "%")) {
-                            while (columns.next()) {
-                                columnNames.add(columns.getString("COLUMN_NAME"));
-                            }
-                        }
-
-                        List<String> primaryKeys = new ArrayList<>();
-                        try (ResultSet pks = metaData.getPrimaryKeys(ds.getDbName(), tableSchema, tableName)) {
-                            while (pks.next()) {
-                                primaryKeys.add(pks.getString("COLUMN_NAME"));
-                            }
-                        }
-
-                        progress.setTotalTables(tableMetas.size() + 1);
-
-                        // Build TableMeta for relation inference
-                        List<RelationInferenceService.ForeignKeyInfo> fkList =
-                                extractImportedKeys(metaData, ds, dialect, tableSchema, tableName, fullTableName);
-                        RelationInferenceService.TableMeta meta = new RelationInferenceService.TableMeta();
-                        meta.tableName = fullTableName;
-                        meta.simpleTableName = tableName;
-                        meta.columns = columnNames;
-                        meta.primaryKeys = primaryKeys;
-                        meta.importedKeys = fkList;
-                        tableMetas.add(meta);
-                    }
-                }
-            }
+            // Pass 1: collect TableMeta (columns, PKs, FKs) for relation inference
+            List<RelationInferenceService.TableMeta> tableMetas = extractTableMetas(ds, progress);
 
             if (tableMetas.isEmpty()) {
                 log.warn("Data source [{}] has no tables", ds.getName());
@@ -150,6 +106,152 @@ public class SchemaService {
             log.error("Schema sync failed", e);
             throw new RuntimeException("Sync failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Connects to the data source and collects {@link RelationInferenceService.TableMeta}
+     * (columns, primary keys, imported foreign keys) for every table. Shared by schema
+     * sync, AI relation generation, and the schema-tables dropdown endpoint.
+     *
+     * @param progress optional sync-progress sink; pass {@code null} when not syncing.
+     */
+    private List<RelationInferenceService.TableMeta> extractTableMetas(DataSource ds, SyncProgress progress) throws Exception {
+        DatabaseDialect dialect = ds.getDialect();
+        List<RelationInferenceService.TableMeta> tableMetas = new ArrayList<>();
+
+        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
+            DatabaseMetaData metaData = conn.getMetaData();
+
+            try (ResultSet tables = metaData.getTables(ds.getDbName(), null, "%", new String[] { "TABLE" })) {
+                while (tables.next()) {
+                    String tableName = tables.getString("TABLE_NAME");
+                    String tableSchema = tables.getString("TABLE_SCHEM");
+
+                    // Build qualified table name with dialect-aware logic
+                    String fullTableName = buildQualifiedTableName(dialect, tableSchema, tableName, ds.getDbName());
+
+                    if (progress != null) progress.setCurrentTable(fullTableName);
+
+                    List<String> columnNames = new ArrayList<>();
+                    try (ResultSet columns = metaData.getColumns(ds.getDbName(), tableSchema, tableName, "%")) {
+                        while (columns.next()) {
+                            columnNames.add(columns.getString("COLUMN_NAME"));
+                        }
+                    }
+
+                    List<String> primaryKeys = new ArrayList<>();
+                    try (ResultSet pks = metaData.getPrimaryKeys(ds.getDbName(), tableSchema, tableName)) {
+                        while (pks.next()) {
+                            primaryKeys.add(pks.getString("COLUMN_NAME"));
+                        }
+                    }
+
+                    if (progress != null) progress.setTotalTables(tableMetas.size() + 1);
+
+                    List<RelationInferenceService.ForeignKeyInfo> fkList =
+                            extractImportedKeys(metaData, ds, dialect, tableSchema, tableName, fullTableName);
+                    RelationInferenceService.TableMeta meta = new RelationInferenceService.TableMeta();
+                    meta.tableName = fullTableName;
+                    meta.simpleTableName = tableName;
+                    meta.columns = columnNames;
+                    meta.primaryKeys = primaryKeys;
+                    meta.importedKeys = fkList;
+                    tableMetas.add(meta);
+                }
+            }
+        }
+        return tableMetas;
+    }
+
+    /**
+     * Runs LLM-only relation inference for the given data source and returns the
+     * candidate relations WITHOUT persisting them. Candidates whose key already
+     * exists (any source) are filtered out so the preview only shows new relations.
+     */
+    public List<TableRelation> previewLlmRelations(Long dataSourceId) throws Exception {
+        DataSource ds = dataSourceRepository.findById(dataSourceId)
+                .orElseThrow(() -> new RuntimeException("Data source not found: " + dataSourceId));
+
+        List<RelationInferenceService.TableMeta> tableMetas = extractTableMetas(ds, null);
+        if (tableMetas.isEmpty()) return new ArrayList<>();
+
+        List<RelationInferenceService.InferredRelation> inferred =
+                relationInferenceService.inferFromLlm(tableMetas, llmService, ds.getDialect().getDisplayName());
+
+        Set<String> existingKeys = tableRelationRepository.findByDataSourceIdAndIsActive(dataSourceId, 1)
+                .stream().map(this::relationKey).collect(Collectors.toSet());
+
+        List<TableRelation> candidates = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (RelationInferenceService.InferredRelation r : inferred) {
+            String key = r.getFromTable() + "|" + r.getFromColumn() + "|" + r.getToTable() + "|" + r.getToColumn();
+            if (existingKeys.contains(key) || !seen.add(key)) continue;
+            candidates.add(TableRelation.builder()
+                    .dataSourceId(dataSourceId)
+                    .fromTable(r.getFromTable())
+                    .fromColumn(r.getFromColumn())
+                    .toTable(r.getToTable())
+                    .toColumn(r.getToColumn())
+                    .source("llm")
+                    .confidence(r.getConfidence())
+                    .isActive(1)
+                    .build());
+        }
+        log.info("AI relation preview for dataSourceId={}: {} new candidate(s)", dataSourceId, candidates.size());
+        return candidates;
+    }
+
+    /**
+     * Persists the user-selected AI candidates as source="llm" relations (append-only).
+     * Candidates duplicating an existing relation (any source) are skipped to respect
+     * the unique constraint.
+     */
+    @Transactional
+    public List<TableRelation> saveSelectedLlmRelations(Long dataSourceId, List<TableRelation> selected) {
+        if (selected == null || selected.isEmpty()) return new ArrayList<>();
+
+        Set<String> existingKeys = tableRelationRepository.findByDataSourceIdAndIsActive(dataSourceId, 1)
+                .stream().map(this::relationKey).collect(Collectors.toSet());
+
+        List<TableRelation> toSave = new ArrayList<>();
+        for (TableRelation r : selected) {
+            if (r.getFromTable() == null || r.getFromColumn() == null
+                    || r.getToTable() == null || r.getToColumn() == null) continue;
+            String key = relationKey(r);
+            if (!existingKeys.add(key)) continue; // skip duplicates (existing + within-batch)
+            toSave.add(TableRelation.builder()
+                    .dataSourceId(dataSourceId)
+                    .fromTable(r.getFromTable())
+                    .fromColumn(r.getFromColumn())
+                    .toTable(r.getToTable())
+                    .toColumn(r.getToColumn())
+                    .source("llm")
+                    .confidence(r.getConfidence())
+                    .isActive(1)
+                    .build());
+        }
+        List<TableRelation> saved = tableRelationRepository.saveAll(toSave);
+        log.info("Saved {} AI-generated relation(s) for dataSourceId={}", saved.size(), dataSourceId);
+        return saved;
+    }
+
+    /**
+     * Returns every table with its column list (fully-qualified table names),
+     * used to drive the manual relation form's dropdowns.
+     */
+    public List<Map<String, Object>> listSchemaTables(Long dataSourceId) throws Exception {
+        DataSource ds = dataSourceRepository.findById(dataSourceId)
+                .orElseThrow(() -> new RuntimeException("Data source not found: " + dataSourceId));
+        List<RelationInferenceService.TableMeta> metas = extractTableMetas(ds, null);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (RelationInferenceService.TableMeta m : metas) {
+            result.add(Map.of("table", m.tableName, "columns", m.columns));
+        }
+        return result;
+    }
+
+    private String relationKey(TableRelation r) {
+        return r.getFromTable() + "|" + r.getFromColumn() + "|" + r.getToTable() + "|" + r.getToColumn();
     }
 
     /**
@@ -242,8 +344,15 @@ public class SchemaService {
      * when tableSchema is null, empty, or equals the database name.
      */
     private String buildQualifiedTableName(DatabaseDialect dialect, String tableSchema, String tableName, String dbName) {
+        // Skip the schema prefix for the default schema:
+        //  - MySQL: the schema equals the database name
+        //  - PostgreSQL: the default "public" schema is on the search_path, so tables are
+        //    reachable unqualified. Keeping it bare also matches listTableNames() / the tool
+        //    layer, which already use bare table names.
+        // Non-default schemas (e.g. "sales") are still qualified to avoid ambiguity.
         boolean useSchemaPrefix = tableSchema != null && !tableSchema.isBlank()
-                && !tableSchema.equalsIgnoreCase(dbName);
+                && !tableSchema.equalsIgnoreCase(dbName)
+                && !"public".equalsIgnoreCase(tableSchema);
         if (useSchemaPrefix) {
             return dialect.quoteQualifiedTable(tableSchema, tableName);
         }
