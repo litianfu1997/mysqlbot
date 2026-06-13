@@ -50,7 +50,11 @@ mysqlbot:
     max-rounds: 3
   # 追问 Agent 工具探查最大轮次
   suggest:
-    max-rounds: 3
+   max-rounds: 3
+
+  # Schema metadata cache (TTL based, default 5 minutes)
+  cache:
+    schema-ttl-seconds: 300
 
 logging:
   level:

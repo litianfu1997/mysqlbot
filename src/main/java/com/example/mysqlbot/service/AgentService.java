@@ -11,13 +11,16 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Agent service for tool use / function calling.
  * Manages multi-turn conversations where LLM can call tools to gather information.
  *
- * <p>循环骨架与具体工具解耦：通过 {@link ToolExecutor} 注入工具执行逻辑，
- * 使 SQL schema 探索、图表数据探查、追问关联探查等不同 agent 复用同一循环。
+ * <p>The loop skeleton is decoupled from concrete tools via {@link ToolExecutor},
+ * so SQL schema exploration, chart data probing, and suggest-relation probing
+ * all reuse the same loop.
  */
 @Slf4j
 @Service
@@ -33,8 +36,8 @@ public class AgentService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 工具执行器：把工具名 + 参数映射为执行结果文本。
-     * 不同 agent 注入各自的执行逻辑（schema 工具 / 内存结果集探查工具等）。
+     * Tool executor: maps tool name + arguments to a result string.
+     * Different agents inject their own execution logic.
      */
     @FunctionalInterface
     public interface ToolExecutor {
@@ -42,23 +45,22 @@ public class AgentService {
     }
 
     /**
-     * 构造绑定 dataSourceId 的执行器：注入 data_source_id 后委托 {@link ToolService}。
+     * Builds a dataSourceId-bound executor: injects data_source_id then delegates to {@link ToolService}.
      */
     public ToolExecutor dataSourceToolExecutor(Long dataSourceId) {
         return (name, args) -> {
-            // 后端权威注入 dataSourceId，覆盖 LLM 可能传的任何值
             args.put("data_source_id", dataSourceId);
             return toolService.executeTool(name, args);
         };
     }
 
     // ---------------------------------------------------------------------------
-    // SQL schema 工具循环（保留原签名，委托通用循环）
+    // SQL schema tool loop (keeps original signature, delegates to generic loop)
     // ---------------------------------------------------------------------------
 
     /**
-     * Agent 循环：调用 LLM → 检测 tool_calls → 执行工具 → 继续循环 → 最终返回文本。
-     * dataSourceId 由后端权威注入，LLM 无需（也无法）自己传 data_source_id。
+     * Agent loop: call LLM, detect tool_calls, execute tools, continue, return final text.
+     * dataSourceId is injected server-side; LLM does not need (or is able) to pass data_source_id.
      */
     public String runAgentLoop(
             List<Map<String, Object>> messages,
@@ -71,7 +73,7 @@ public class AgentService {
     }
 
     /**
-     * 通用 Agent 循环（使用默认轮次上限 mysqlbot.tool.max-rounds）。
+     * Generic agent loop (uses default round limit mysqlbot.tool.max-rounds).
      */
     public String runAgentLoop(
             List<Map<String, Object>> messages,
@@ -83,8 +85,8 @@ public class AgentService {
     }
 
     /**
-     * 通用 Agent 循环：调用 LLM → 检测 tool_calls → 用 executor 执行工具 → 继续循环 → 返回最终文本。
-     * 超过 {@code maxRounds} 后强制 tool_choice=none 输出文本。
+     * Generic agent loop: call LLM, detect tool_calls, execute via executor, continue, return final text.
+     * After exceeding maxRounds, forces tool_choice=none to get a text answer.
      */
     public String runAgentLoop(
             List<Map<String, Object>> messages,
@@ -111,21 +113,21 @@ public class AgentService {
             executeToolCalls(messages, result, executor);
         }
 
-        // 超过最大轮次 — 最终调用强制 tool_choice=none，让模型输出文本
+        // Exceeded max rounds — force tool_choice=none so the model outputs text
         log.warn("Agent loop reached max rounds ({}), forcing final answer with tool_choice=none", maxRounds);
         ChatResult finalResult = llmService.chatWithMessagesAndTools(messages, null, temperature, llmConfig, "none");
         String finalContent = finalResult.getContent() != null ? finalResult.getContent() : "";
         if (finalContent.isBlank()) {
             log.error("Agent loop: final forced turn returned empty content");
-            finalContent = "{\"success\":false,\"message\":\"模型工具调用超出轮次上限，无法生成答案\"}";
+            finalContent = "{\"success\":false,\"message\":\"tool call rounds exceeded limit, unable to generate answer\"}";
         }
         log.info("Agent loop forced final answer, response {} chars", finalContent.length());
         return finalContent;
     }
 
     /**
-     * 工具探索阶段非流式，最终答案轮流式输出。
-     * 用于 generateStream：前端在工具阶段等待、最终轮收到 token 流。
+     * Tool exploration phase is non-streaming; final answer is streamed.
+     * Used by generateStream: frontend waits during tool phase, then receives token stream.
      */
     public String runAgentLoopThenStream(
             List<Map<String, Object>> messages,
@@ -138,14 +140,15 @@ public class AgentService {
 
         ToolExecutor executor = dataSourceToolExecutor(dataSourceId);
 
-        // 工具探索阶段（非流式）
+        // Tool exploration phase (non-streaming)
         for (int round = 0; round < maxToolRounds; round++) {
             log.debug("AgentStream round {}/{}", round + 1, maxToolRounds);
 
             ChatResult result = llmService.chatWithMessagesAndTools(messages, tools, temperature, llmConfig);
 
             if (result.getToolCalls() == null || result.getToolCalls().isEmpty()) {
-                // 模型已准备好直接回答，但此次是非流式结果；转换为流式输出给前端
+                // Model ready to answer directly, but this was a non-streaming result;
+                // convert to streaming output for the frontend.
                 log.debug("AgentStream: no more tool_calls after {} round(s), streaming final answer", round + 1);
                 String content = result.getContent() != null ? result.getContent() : "";
                 if (!content.isBlank()) {
@@ -159,13 +162,13 @@ public class AgentService {
             executeToolCalls(messages, result, executor);
         }
 
-        // 超过轮次上限 — 最终一轮走真流式（无工具）
+        // Exceeded round limit — final round goes real streaming (no tools)
         log.warn("AgentStream reached max rounds ({}), streaming final answer", maxToolRounds);
         return llmService.chatStreamObjectMessages(messages, temperature, llmConfig, thinking, tokenCallback);
     }
 
     // ---------------------------------------------------------------------------
-    // 内部辅助方法
+    // Internal helpers
     // ---------------------------------------------------------------------------
 
     private void appendAssistantMessage(List<Map<String, Object>> messages, ChatResult result) {
@@ -179,24 +182,50 @@ public class AgentService {
     }
 
     private void executeToolCalls(List<Map<String, Object>> messages, ChatResult result, ToolExecutor executor) {
-        for (var tc : result.getToolCalls()) {
-            if (tc == null || tc.getFunction() == null) continue;
+        var calls = result.getToolCalls();
+        if (calls == null || calls.isEmpty()) return;
 
-            Map<String, Object> toolArgs = parseArguments(tc.getFunction().getArguments());
+        // Filter out invalid tool calls, preserving index alignment
+        List<com.example.mysqlbot.util.OpenAiLlmUtil.ChatResponse.Choice.ToolCall> validCalls = calls.stream()
+                .filter(tc -> tc != null && tc.getFunction() != null)
+                .collect(Collectors.toList());
+        if (validCalls.isEmpty()) return;
 
-            log.debug("Executing tool: {} args: {}", tc.getFunction().getName(), toolArgs);
-            String toolResult = executor.execute(tc.getFunction().getName(), toolArgs);
-
-            Map<String, Object> toolMsg = new HashMap<>();
-            toolMsg.put("role", "tool");
-            // 若 id 为空，生成合成 id 保证消息链完整
-            String callId = (tc.getId() != null && !tc.getId().isBlank())
-                    ? tc.getId()
-                    : "call_" + tc.getFunction().getName() + "_" + System.nanoTime();
-            toolMsg.put("tool_call_id", callId);
-            toolMsg.put("content", toolResult);
-            messages.add(toolMsg);
+        // Single tool call — execute directly (no thread overhead)
+        if (validCalls.size() == 1) {
+            messages.add(executeSingleToolCall(validCalls.get(0), executor));
+            return;
         }
+
+        // Multiple tool calls — execute in parallel (virtual threads enabled)
+        log.info("Executing {} tool calls in parallel", validCalls.size());
+        List<CompletableFuture<Map<String, Object>>> futures = validCalls.stream()
+                .map(tc -> CompletableFuture.supplyAsync(() -> executeSingleToolCall(tc, executor)))
+                .collect(Collectors.toList());
+
+        // Wait for all, then append results in original order
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        for (CompletableFuture<Map<String, Object>> f : futures) {
+            messages.add(f.join());
+        }
+    }
+
+    private Map<String, Object> executeSingleToolCall(
+            com.example.mysqlbot.util.OpenAiLlmUtil.ChatResponse.Choice.ToolCall tc, ToolExecutor executor) {
+        Map<String, Object> toolArgs = parseArguments(tc.getFunction().getArguments());
+
+        log.debug("Executing tool: {} args: {}", tc.getFunction().getName(), toolArgs);
+        String toolResult = executor.execute(tc.getFunction().getName(), toolArgs);
+
+        Map<String, Object> toolMsg = new HashMap<>();
+        toolMsg.put("role", "tool");
+        // If id is empty, generate a synthetic id to keep the conversation chain complete
+        String callId = (tc.getId() != null && !tc.getId().isBlank())
+                ? tc.getId()
+                : "call_" + tc.getFunction().getName() + "_" + System.nanoTime();
+        toolMsg.put("tool_call_id", callId);
+        toolMsg.put("content", toolResult);
+        return toolMsg;
     }
 
     private Map<String, Object> parseArguments(String argumentsJson) {

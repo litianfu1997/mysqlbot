@@ -2,6 +2,8 @@ package com.example.mysqlbot.controller;
 
 import com.example.mysqlbot.model.DataSource;
 import com.example.mysqlbot.repository.DataSourceRepository;
+import com.example.mysqlbot.service.ConnectionPoolService;
+import com.example.mysqlbot.service.SchemaCacheService;
 import com.example.mysqlbot.service.SchemaService;
 import com.example.mysqlbot.service.SqlExecuteService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,8 @@ public class DataSourceController {
     private final DataSourceRepository dataSourceRepository;
     private final SchemaService schemaService;
     private final SqlExecuteService sqlExecuteService;
+    private final ConnectionPoolService connectionPoolService;
+    private final SchemaCacheService schemaCacheService;
 
     @GetMapping
     public List<DataSource> list() {
@@ -44,14 +48,16 @@ public class DataSourceController {
             return ResponseEntity.notFound().build();
         }
         dataSource.setId(id);
-        // Evict connection pool when data source config changes
-        sqlExecuteService.evictPool(id);
+        // Evict pool + schema cache when data source config changes
+        connectionPoolService.evictPool(id);
+        schemaCacheService.evictDataSource(id);
         return ResponseEntity.ok(dataSourceRepository.save(dataSource));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
-        sqlExecuteService.evictPool(id);
+        connectionPoolService.evictPool(id);
+        schemaCacheService.evictDataSource(id);
         dataSourceRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }

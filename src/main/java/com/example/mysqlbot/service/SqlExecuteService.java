@@ -2,9 +2,6 @@ package com.example.mysqlbot.service;
 
 import com.example.mysqlbot.model.DataSource;
 import com.example.mysqlbot.repository.DataSourceRepository;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
@@ -15,12 +12,11 @@ import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
- * SQL execution service with connection pooling per DataSource.
- * Uses HikariCP to maintain a pool for each target database.
+* SQL execution service with connection pooling per DataSource.
+ * SQL execution service. Connection pooling is delegated to {@link ConnectionPoolService}.
  */
 @Slf4j
 @Service
@@ -28,9 +24,7 @@ import java.util.regex.Pattern;
 public class SqlExecuteService {
 
     private final DataSourceRepository dataSourceRepository;
-
-    // Connection pools per data source
-    private final ConcurrentHashMap<Long, HikariDataSource> connectionPools = new ConcurrentHashMap<>();
+    private final ConnectionPoolService connectionPoolService;
 
     @Value("${mysqlbot.sql.allow-only-select:true}")
     private boolean allowOnlySelect;
@@ -49,46 +43,6 @@ public class SqlExecuteService {
                 .toArray(java.util.regex.Pattern[]::new);
     }
 
-    @PreDestroy
-    public void cleanup() {
-        connectionPools.forEach((id, pool) -> {
-            if (!pool.isClosed()) pool.close();
-            log.info("Closed connection pool for dataSourceId={}", id);
-        });
-        connectionPools.clear();
-    }
-
-    /**
-     * Get or create a connection pool for the given data source.
-     */
-    private HikariDataSource getPool(DataSource ds) {
-        return connectionPools.computeIfAbsent(ds.getId(), id -> {
-            HikariConfig config = new HikariConfig();
-            config.setJdbcUrl(ds.buildJdbcUrl());
-            config.setUsername(ds.getUsername());
-            config.setPassword(ds.getPassword());
-            config.setMaximumPoolSize(5);
-            config.setMinimumIdle(1);
-            config.setConnectionTimeout(10000); // 10s
-            config.setIdleTimeout(300000); // 5 min
-            config.setMaxLifetime(600000); // 10 min
-            config.setPoolName("ds-" + id);
-            log.info("Created connection pool for dataSourceId={}, name={}", id, ds.getName());
-            return new HikariDataSource(config);
-        });
-    }
-
-    /**
-     * Evict connection pool when data source is updated or deleted.
-     */
-    public void evictPool(Long dataSourceId) {
-        HikariDataSource pool = connectionPools.remove(dataSourceId);
-        if (pool != null && !pool.isClosed()) {
-            pool.close();
-            log.info("Evicted connection pool for dataSourceId={}", dataSourceId);
-        }
-    }
-
     public SqlExecuteResult execute(String sql, Long dataSourceId) {
         validateSql(sql);
 
@@ -97,9 +51,7 @@ public class SqlExecuteService {
 
         log.info("Executing SQL [dataSource={}]: {}", ds.getName(), sql);
 
-        HikariDataSource pool = getPool(ds);
-
-        try (Connection conn = pool.getConnection();
+        try (Connection conn = connectionPoolService.getConnection(ds);
              java.sql.Statement stmt = conn.createStatement()) {
 
             stmt.setQueryTimeout(timeoutSeconds);

@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -29,6 +28,8 @@ public class ToolService {
 
     private final DataSourceRepository dataSourceRepository;
     private final TableRelationRepository tableRelationRepository;
+    private final ConnectionPoolService connectionPoolService;
+    private final SchemaCacheService schemaCacheService;
 
     private static final int TOOL_QUERY_TIMEOUT_SECONDS = 10;
 
@@ -125,20 +126,24 @@ public class ToolService {
      * 获取数据源中所有表名列表（仅表名，供 prompt 注入起点提示）。
      */
     public List<String> listTableNames(Long dataSourceId) {
+        List<String> cached = schemaCacheService.getTableNames(dataSourceId);
+        if (cached != null) return cached;
+
+        List<String> tables = fetchTableNames(dataSourceId);
+        schemaCacheService.putTableNames(dataSourceId, tables);
+        return tables;
+    }
+
+    /** Fetches table names via JDBC without touching the cache. */
+    private List<String> fetchTableNames(Long dataSourceId) {
         DataSource ds = dataSourceRepository.findById(dataSourceId).orElse(null);
         if (ds == null) return List.of();
-        List<String> tables = new ArrayList<>();
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
-            DatabaseMetaData meta = conn.getMetaData();
-            try (ResultSet rs = meta.getTables(ds.getDbName(), null, "%", new String[]{"TABLE"})) {
-                while (rs.next()) {
-                    tables.add(rs.getString("TABLE_NAME"));
-                }
-            }
+        try (Connection conn = connectionPoolService.getConnection(ds)) {
+            return collectTables(conn, ds);
         } catch (Exception e) {
-            log.warn("listTableNames failed for dataSourceId={}: {}", dataSourceId, e.getMessage());
+            log.warn("fetchTableNames failed for dataSourceId={}: {}", dataSourceId, e.getMessage());
+            return List.of();
         }
-        return tables;
     }
 
     /**
@@ -171,21 +176,20 @@ public class ToolService {
         Number dsId = (Number) arguments.get("data_source_id");
         if (dsId == null) return "错误：缺少 data_source_id 参数";
 
-        DataSource ds = dataSourceRepository.findById(dsId.longValue()).orElse(null);
-        if (ds == null) return "错误：数据源不存在";
-
-        List<String> tables = new ArrayList<>();
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
-            DatabaseMetaData meta = conn.getMetaData();
-            try (ResultSet rs = meta.getTables(ds.getDbName(), null, "%", new String[]{"TABLE"})) {
-                while (rs.next()) {
-                    tables.add(rs.getString("TABLE_NAME"));
-                }
-            }
-        } catch (Exception e) {
-            return "错误：" + e.getMessage();
-        }
+        List<String> tables = listTableNames(dsId.longValue());
+        if (tables.isEmpty()) return "错误：数据源不存在或无表";
         return "表列表：" + String.join(", ", tables);
+    }
+
+    private List<String> collectTables(Connection conn, DataSource ds) throws Exception {
+        List<String> tables = new ArrayList<>();
+        DatabaseMetaData meta = conn.getMetaData();
+        try (ResultSet rs = meta.getTables(ds.getDbName(), null, "%", new String[]{"TABLE"})) {
+            while (rs.next()) {
+                tables.add(rs.getString("TABLE_NAME"));
+            }
+        }
+        return tables;
     }
 
     private String getTableSchema(Map<String, Object> arguments) {
@@ -193,11 +197,19 @@ public class ToolService {
         String tableName = (String) arguments.get("table_name");
         if (dsId == null || tableName == null) return "错误：缺少 data_source_id 或 table_name 参数";
 
-        DataSource ds = dataSourceRepository.findById(dsId.longValue()).orElse(null);
-        if (ds == null) return "错误：数据源不存在";
+        String cached = schemaCacheService.getTableSchema(dsId.longValue(), tableName);
+        if (cached != null) return cached;
 
+        String result = fetchTableSchema(dsId.longValue(), tableName);
+        if (result != null) schemaCacheService.putTableSchema(dsId.longValue(), tableName, result);
+        return result != null ? result : "未找到表 " + tableName + "，请用 list_tables 确认表名是否正确。";
+    }
+
+    private String fetchTableSchema(Long dataSourceId, String tableName) {
+        DataSource ds = dataSourceRepository.findById(dataSourceId).orElse(null);
+        if (ds == null) return null;
         StringBuilder result = new StringBuilder();
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = connectionPoolService.getConnection(ds)) {
             DatabaseMetaData meta = conn.getMetaData();
             try (ResultSet cols = meta.getColumns(ds.getDbName(), null, tableName, "%")) {
                 result.append("表 ").append(tableName).append(" 的列信息：\n");
@@ -213,7 +225,7 @@ public class ToolService {
             return "错误：" + e.getMessage();
         }
         if (result.length() == ("表 " + tableName + " 的列信息：\n").length()) {
-            return "未找到表 " + tableName + "，请用 list_tables 确认表名是否正确。";
+            return null; // table not found; don't cache null
         }
         return result.toString();
     }
@@ -223,12 +235,17 @@ public class ToolService {
         String tableName = (String) arguments.get("table_name");
         if (dsId == null) return "错误：缺少 data_source_id 参数";
 
+        String scope = (tableName == null || tableName.isBlank()) ? "all" : tableName;
+
+        String cached = schemaCacheService.getRelations(dsId.longValue(), scope);
+        if (cached != null) return cached;
+
         List<com.example.mysqlbot.model.TableRelation> relations;
-        if (tableName == null || tableName.isBlank()) {
+        if ("all".equals(scope)) {
             relations = tableRelationRepository.findByDataSourceIdAndIsActive(dsId.longValue(), 1);
         } else {
             relations = tableRelationRepository.safelyFindRelationsInvolvingTables(
-                    dsId.longValue(), List.of(tableName));
+                    dsId.longValue(), List.of(scope));
         }
 
         if (relations.isEmpty()) {
@@ -241,6 +258,7 @@ public class ToolService {
                   .append(" → ").append(r.getToTable()).append(".").append(r.getToColumn())
                   .append(" [来源:").append(r.getSource()).append(", 置信度:").append(r.getConfidence()).append("]\n");
         }
+        schemaCacheService.putRelations(dsId.longValue(), scope, result.toString());
         return result.toString();
     }
 
@@ -253,7 +271,7 @@ public class ToolService {
         if (ds == null) return "错误：数据源不存在";
 
         List<String> matchedTables = new ArrayList<>();
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = connectionPoolService.getConnection(ds)) {
             DatabaseMetaData meta = conn.getMetaData();
             try (ResultSet rs = meta.getTables(ds.getDbName(), null, "%", new String[]{"TABLE"})) {
                 while (rs.next()) {
@@ -288,7 +306,7 @@ public class ToolService {
         if (ds == null) return "错误：数据源不存在";
 
         StringBuilder result = new StringBuilder();
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = connectionPoolService.getConnection(ds)) {
             var stmt = conn.createStatement();
             stmt.setQueryTimeout(TOOL_QUERY_TIMEOUT_SECONDS);
             stmt.setMaxRows(5);

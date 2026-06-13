@@ -10,10 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
+import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -32,6 +29,8 @@ public class SchemaService {
     private final RelationInferenceService relationInferenceService;
     private final TableRelationRepository tableRelationRepository;
     private final LlmService llmService;
+    private final ConnectionPoolService connectionPoolService;
+    private final SchemaCacheService schemaCacheService;
 
     private final java.util.Map<Long, SyncProgress> progressMap = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -97,6 +96,7 @@ public class SchemaService {
             DataSource updatedDs = dataSourceRepository.findById(dataSourceId).orElse(ds);
             updatedDs.setSchemaSyncedAt(LocalDateTime.now());
             dataSourceRepository.save(updatedDs);
+            schemaCacheService.evictDataSource(dataSourceId);
 
             progress.setCompleted(true);
             progress.setStatus("done");
@@ -119,7 +119,7 @@ public class SchemaService {
         DatabaseDialect dialect = ds.getDialect();
         List<RelationInferenceService.TableMeta> tableMetas = new ArrayList<>();
 
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
+        try (Connection conn = connectionPoolService.getConnection(ds)) {
             DatabaseMetaData metaData = conn.getMetaData();
 
             try (ResultSet tables = metaData.getTables(ds.getDbName(), null, "%", new String[] { "TABLE" })) {
@@ -360,7 +360,9 @@ public class SchemaService {
     }
 
     public boolean testConnection(DataSource ds) {
-        try (Connection conn = DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
+        // ds may be a transient, unsaved entity (no id) — pool lookup is by id,
+        // so use a raw connection here.
+        try (Connection conn = java.sql.DriverManager.getConnection(ds.buildJdbcUrl(), ds.getUsername(), ds.getPassword())) {
             return conn.isValid(5);
         } catch (Exception e) {
             log.error("Data source connection test failed: {}", e.getMessage());
