@@ -40,6 +40,17 @@
         <span class="streaming-cursor"></span>
       </div>
 
+      <!-- Clarification -->
+      <div v-if="clarifyOptions.length > 0" class="clarify-block">
+        <div class="clarify-block__header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>{{ $t('chat.clarifyTitle') }}</span>
+        </div>
+        <div class="clarify-block__options">
+          <button v-for="opt in clarifyOptions" :key="opt" class="clarify-chip" @click="$emit('ask', opt)">{{ opt }}</button>
+        </div>
+      </div>
+
       <!-- SQL Block -->
       <div v-if="message.sqlQuery" class="sql-block">
         <div class="sql-block__header">
@@ -75,9 +86,9 @@
       </div>
 
       <!-- Chart -->
-      <div v-if="(message.chartType && message.chartType !== 'Table') || (parsedResult && parsedResult.rows && parsedResult.rows.length > 0 && !message.chartType)" class="chart-block">
-        <!-- Not analyzed yet -->
-        <div v-if="!message.chartType && !analyzing" class="chart-placeholder">
+      <div v-if="hasRenderableChart || canManualAnalyze" class="chart-block">
+        <!-- Not analyzed yet (legacy manual entry) -->
+        <div v-if="canManualAnalyze && !hasRenderableChart && !analyzing" class="chart-placeholder">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
           <span class="chart-placeholder__text">{{ $t('chat.generateChart') }}</span>
           <el-button type="primary" size="small" @click="handleAnalyze">
@@ -180,15 +191,28 @@ watch(thinkingText, (value) => {
   }
 }, { immediate: true })
 
+// Clarification options (主动澄清的可点选项)
+const clarifyOptions = computed<string[]>(() => {
+  if (!props.message.clarifyOptions) return []
+  try { const o = JSON.parse(props.message.clarifyOptions); return Array.isArray(o) ? o : [] } catch { return [] }
+})
+
 // Chart Logic
 const chartRef = ref<HTMLElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
-const showChart = ref(false)
 
-watch(() => props.message.chartType, (newVal) => {
-    if (newVal && newVal !== 'Table') {
-        if (analyzing.value) { analyzing.value = false; showChart.value = true }
-    }
+const chartTypeStr = computed(() => props.message.chartType || '')
+const isTableType = computed(() => chartTypeStr.value.toLowerCase() === 'table')
+// 可直接渲染的图表：制图 Agent 直出 option，或（历史消息）非 Table 的 chartType
+const hasRenderableChart = computed(() => !!props.message.chartOption || (!!chartTypeStr.value && !isTableType.value))
+// 尚未分析、但有数据 → 显示手动"生成图表"入口（兼容旧消息）
+const canManualAnalyze = computed(() => !chartTypeStr.value && !props.message.chartOption && !!parsedResult.value?.rows?.length)
+
+const showChart = ref(hasRenderableChart.value)
+
+// 自动出图：分析结果到达后自动展开图表
+watch(hasRenderableChart, (val) => {
+    if (val) { analyzing.value = false; showChart.value = true }
 })
 watch(() => props.message, () => {
     if (showChart.value) nextTick(() => renderChart())
@@ -204,16 +228,38 @@ async function handleAnalyze() {
 }
 
 function renderChart() {
-  if (!showChart.value) return
-  if (!props.message.chartType || props.message.chartType === 'Table' || !parsedResult.value || !chartRef.value) return
+  if (!showChart.value || !chartRef.value) return
+  const data = parsedResult.value?.rows || []
+
+  // 优先：制图 Agent 直出的完整 ECharts option（前端注入 dataset.source）
+  if (props.message.chartOption) {
+    try {
+      const option = JSON.parse(props.message.chartOption)
+      if (Array.isArray(option.dataset)) {
+        option.dataset = [{ source: data }, ...option.dataset.slice(1)]
+      } else {
+        if (!option.dataset) option.dataset = {}
+        option.dataset.source = data
+      }
+      if (chartInstance) chartInstance.dispose()
+      chartInstance = echarts.init(chartRef.value)
+      chartInstance.setOption(option)
+      window.addEventListener('resize', () => chartInstance?.resize())
+      return
+    } catch (e) {
+      console.error('Failed to render chartOption', e)
+    }
+  }
+
+  // 回退：历史消息的单 series 渲染
+  if (!chartTypeStr.value || isTableType.value || !parsedResult.value) return
   if (chartInstance) chartInstance.dispose()
   chartInstance = echarts.init(chartRef.value)
 
-  const data = parsedResult.value.rows || []
   const columns = parsedResult.value.columns || []
   const xAxisName = props.message.xAxis || columns[0]
   const yAxisName = props.message.yAxis || columns[1]
-  const type = props.message.chartType.toLowerCase()
+  const type = chartTypeStr.value.toLowerCase()
 
   const option: any = {
     color: ['#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#1d4ed8'],
@@ -478,6 +524,45 @@ function renderChart() {
   color: var(--text-muted);
 }
 .chart-placeholder__text { font-size: 13px; }
+
+/* ===== Clarification Block ===== */
+.clarify-block {
+  margin-top: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--brand-200);
+  background: var(--brand-50);
+  overflow: hidden;
+}
+.clarify-block__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-600);
+  border-bottom: 1px solid var(--brand-100);
+}
+.clarify-block__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 14px;
+}
+.clarify-chip {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--brand-200);
+  background: var(--bg-primary);
+  color: var(--brand-600);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.clarify-chip:hover {
+  background: var(--brand-100);
+  border-color: var(--brand-500);
+}
 
 /* ===== Suggestions ===== */
 .suggestions {

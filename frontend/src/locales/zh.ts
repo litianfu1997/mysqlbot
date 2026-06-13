@@ -20,6 +20,7 @@
         chartGenerated: '检测到数据可以生成 {chartType} 图表',
         showChart: '显示图表',
         analyzing: '正在分析数据...',
+        clarifyTitle: '需要你确认一下',
         rowCount: '共返回 {count} 行',
         deleteSessionConfirm: '您确定要删除此会话吗？',
         switchDataSource: '切换数据源',

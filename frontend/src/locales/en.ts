@@ -20,6 +20,7 @@
         chartGenerated: 'A {chartType} chart can be generated from the data',
         showChart: 'Show Chart',
         analyzing: 'Analyzing data...',
+        clarifyTitle: 'Please clarify',
         rowCount: '{count} rows returned',
         deleteSessionConfirm: 'Are you sure you want to delete this chat?',
         switchDataSource: 'Switch Data Source',

@@ -8,15 +8,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Agent service for tool use / function calling.
  * Manages multi-turn conversations where LLM can call tools to gather information.
+ *
+ * <p>循环骨架与具体工具解耦：通过 {@link ToolExecutor} 注入工具执行逻辑，
+ * 使 SQL schema 探索、图表数据探查、追问关联探查等不同 agent 复用同一循环。
  */
 @Slf4j
 @Service
@@ -32,6 +33,30 @@ public class AgentService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
+     * 工具执行器：把工具名 + 参数映射为执行结果文本。
+     * 不同 agent 注入各自的执行逻辑（schema 工具 / 内存结果集探查工具等）。
+     */
+    @FunctionalInterface
+    public interface ToolExecutor {
+        String execute(String toolName, Map<String, Object> args);
+    }
+
+    /**
+     * 构造绑定 dataSourceId 的执行器：注入 data_source_id 后委托 {@link ToolService}。
+     */
+    public ToolExecutor dataSourceToolExecutor(Long dataSourceId) {
+        return (name, args) -> {
+            // 后端权威注入 dataSourceId，覆盖 LLM 可能传的任何值
+            args.put("data_source_id", dataSourceId);
+            return toolService.executeTool(name, args);
+        };
+    }
+
+    // ---------------------------------------------------------------------------
+    // SQL schema 工具循环（保留原签名，委托通用循环）
+    // ---------------------------------------------------------------------------
+
+    /**
      * Agent 循环：调用 LLM → 检测 tool_calls → 执行工具 → 继续循环 → 最终返回文本。
      * dataSourceId 由后端权威注入，LLM 无需（也无法）自己传 data_source_id。
      */
@@ -41,9 +66,36 @@ public class AgentService {
             Long dataSourceId,
             double temperature,
             com.example.mysqlbot.model.LlmConfig llmConfig) {
+        return runAgentLoop(messages, tools, temperature, llmConfig,
+                dataSourceToolExecutor(dataSourceId), maxToolRounds);
+    }
 
-        for (int round = 0; round < maxToolRounds; round++) {
-            log.debug("Agent round {}/{}, messages={}, tools={}", round + 1, maxToolRounds,
+    /**
+     * 通用 Agent 循环（使用默认轮次上限 mysqlbot.tool.max-rounds）。
+     */
+    public String runAgentLoop(
+            List<Map<String, Object>> messages,
+            List<Map<String, Object>> tools,
+            double temperature,
+            com.example.mysqlbot.model.LlmConfig llmConfig,
+            ToolExecutor executor) {
+        return runAgentLoop(messages, tools, temperature, llmConfig, executor, maxToolRounds);
+    }
+
+    /**
+     * 通用 Agent 循环：调用 LLM → 检测 tool_calls → 用 executor 执行工具 → 继续循环 → 返回最终文本。
+     * 超过 {@code maxRounds} 后强制 tool_choice=none 输出文本。
+     */
+    public String runAgentLoop(
+            List<Map<String, Object>> messages,
+            List<Map<String, Object>> tools,
+            double temperature,
+            com.example.mysqlbot.model.LlmConfig llmConfig,
+            ToolExecutor executor,
+            int maxRounds) {
+
+        for (int round = 0; round < maxRounds; round++) {
+            log.debug("Agent round {}/{}, messages={}, tools={}", round + 1, maxRounds,
                     messages.size(), tools != null ? tools.size() : 0);
 
             ChatResult result = llmService.chatWithMessagesAndTools(messages, tools, temperature, llmConfig);
@@ -56,11 +108,11 @@ public class AgentService {
 
             log.info("Agent round {}: LLM requested {} tool call(s)", round + 1, result.getToolCalls().size());
             appendAssistantMessage(messages, result);
-            executeToolCalls(messages, result, dataSourceId);
+            executeToolCalls(messages, result, executor);
         }
 
         // 超过最大轮次 — 最终调用强制 tool_choice=none，让模型输出文本
-        log.warn("Agent loop reached max rounds ({}), forcing final answer with tool_choice=none", maxToolRounds);
+        log.warn("Agent loop reached max rounds ({}), forcing final answer with tool_choice=none", maxRounds);
         ChatResult finalResult = llmService.chatWithMessagesAndTools(messages, null, temperature, llmConfig, "none");
         String finalContent = finalResult.getContent() != null ? finalResult.getContent() : "";
         if (finalContent.isBlank()) {
@@ -84,6 +136,8 @@ public class AgentService {
             boolean thinking,
             com.example.mysqlbot.util.OpenAiLlmUtil.StreamCallback tokenCallback) {
 
+        ToolExecutor executor = dataSourceToolExecutor(dataSourceId);
+
         // 工具探索阶段（非流式）
         for (int round = 0; round < maxToolRounds; round++) {
             log.debug("AgentStream round {}/{}", round + 1, maxToolRounds);
@@ -102,7 +156,7 @@ public class AgentService {
 
             log.info("AgentStream round {}: {} tool call(s)", round + 1, result.getToolCalls().size());
             appendAssistantMessage(messages, result);
-            executeToolCalls(messages, result, dataSourceId);
+            executeToolCalls(messages, result, executor);
         }
 
         // 超过轮次上限 — 最终一轮走真流式（无工具）
@@ -124,16 +178,14 @@ public class AgentService {
         messages.add(assistantMsg);
     }
 
-    private void executeToolCalls(List<Map<String, Object>> messages, ChatResult result, Long dataSourceId) {
+    private void executeToolCalls(List<Map<String, Object>> messages, ChatResult result, ToolExecutor executor) {
         for (var tc : result.getToolCalls()) {
             if (tc == null || tc.getFunction() == null) continue;
 
             Map<String, Object> toolArgs = parseArguments(tc.getFunction().getArguments());
-            // 后端权威注入 dataSourceId，覆盖 LLM 可能传的任何值
-            toolArgs.put("data_source_id", dataSourceId);
 
             log.debug("Executing tool: {} args: {}", tc.getFunction().getName(), toolArgs);
-            String toolResult = toolService.executeTool(tc.getFunction().getName(), toolArgs);
+            String toolResult = executor.execute(tc.getFunction().getName(), toolArgs);
 
             Map<String, Object> toolMsg = new HashMap<>();
             toolMsg.put("role", "tool");

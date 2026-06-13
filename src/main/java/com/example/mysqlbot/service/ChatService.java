@@ -40,7 +40,7 @@ public class ChatService {
     private final ChatMessageRepository messageRepository;
     private final SqlGenerateService sqlGenerateService;
     private final SqlExecuteService sqlExecuteService;
-    private final DataAnalysisService dataAnalysisService;
+    private final ChartAgentService chartAgentService;
     private final SuggestQuestionService suggestQuestionService;
     private final SqlPermissionService sqlPermissionService;
     private final LlmConfigRepository llmConfigRepository;
@@ -212,14 +212,34 @@ public class ChatService {
             lastErrorMsg = executeResult.getErrorMessage();
         }
 
-        List<String> suggestedQuestions = List.of();
-        if (generateResult != null && generateResult.isSuccess() && executeResult != null && executeResult.isSuccess()) {
-            emitter.accept(new StreamEvent("sql_executed", executeResult));
+        boolean needClarification = generateResult != null && generateResult.isNeedClarification();
 
-            // Step 3: Generate suggested questions
+        List<String> suggestedQuestions = List.of();
+        ChartAgentService.ChartResult chart = null;
+        if (!needClarification && generateResult != null && generateResult.isSuccess()
+                && executeResult != null && executeResult.isSuccess()) {
+            emitter.accept(new StreamEvent("sql_executed", executeResult));
+            List<Map<String, Object>> rows = executeResult.getRows();
+
+            // Step 3: 自动出图 — 制图 Agent 探查数据形态并直出 ECharts 配置
             try {
-                progress.accept("查询完成，正在生成追问建议...");
-                suggestedQuestions = suggestQuestionService.suggest(userQuestion, generateResult.getSql(), llmConfig);
+                progress.accept("正在分析数据并生成图表...");
+                chart = chartAgentService.generate(userQuestion, generateResult.getSql(), rows, llmConfig);
+                Map<String, Object> analysisPayload = new java.util.HashMap<>();
+                analysisPayload.put("insight", chart.getInsight());
+                analysisPayload.put("chartType", chart.getChartType());
+                analysisPayload.put("chartOption", chart.getChartOption());
+                emitter.accept(new StreamEvent("analysis", analysisPayload));
+            } catch (Exception e) {
+                log.error("Failed to generate chart", e);
+            }
+
+            // Step 4: 追问建议 — 基于真实数据 + 洞察 + 关联维度
+            try {
+                progress.accept("正在生成追问建议...");
+                String insight = chart != null ? chart.getInsight() : null;
+                suggestedQuestions = suggestQuestionService.suggest(
+                        userQuestion, generateResult.getSql(), rows, insight, session.getDataSourceId(), llmConfig);
                 emitter.accept(new StreamEvent("suggest_questions", suggestedQuestions));
             } catch (Exception e) {
                 log.error("Failed to generate suggested questions", e);
@@ -235,9 +255,20 @@ public class ChatService {
                 llmConfig,
                 suggestedQuestions,
                 thinkingContent.toString());
+        if (chart != null) {
+            assistantMsg.setAnalysis(chart.getInsight());
+            assistantMsg.setChartType(chart.getChartType());
+            assistantMsg.setChartOption(chart.getChartOption());
+        }
         messageRepository.save(assistantMsg);
         updateSessionTitle(session, userQuestion);
 
+        if (needClarification) {
+            Map<String, Object> clarifyPayload = new java.util.HashMap<>();
+            clarifyPayload.put("question", generateResult.getExplanation());
+            clarifyPayload.put("options", generateResult.getClarifyOptions());
+            emitter.accept(new StreamEvent("clarification", clarifyPayload));
+        }
         emitter.accept(new StreamEvent("complete", assistantMsg));
     }
 
@@ -261,13 +292,12 @@ public class ChatService {
             List<java.util.Map<String, Object>> rows = executeResult.getRows();
             if (rows == null || rows.isEmpty()) throw new RuntimeException("No data in results");
 
-            DataAnalysisService.AnalysisResult analysis = dataAnalysisService.analyze(
+            ChartAgentService.ChartResult chart = chartAgentService.generate(
                     userQuestion, message.getSqlQuery(), rows, llmConfig);
 
-            message.setAnalysis(analysis.getInsight());
-            message.setChartType(analysis.getChartType());
-            message.setXAxis(analysis.getXAxis());
-            message.setYAxis(analysis.getYAxis());
+            message.setAnalysis(chart.getInsight());
+            message.setChartType(chart.getChartType());
+            message.setChartOption(chart.getChartOption());
             return messageRepository.save(message);
         } catch (Exception e) {
             log.error("Analysis failed", e);
@@ -328,10 +358,20 @@ public class ChatService {
             String thinkingContent) {
 
         if (generateResult == null || !generateResult.isSuccess() || generateResult.getSql() == null) {
+            String clarifyJson = null;
+            if (generateResult != null && generateResult.isNeedClarification()
+                    && generateResult.getClarifyOptions() != null && !generateResult.getClarifyOptions().isEmpty()) {
+                try {
+                    clarifyJson = objectMapper.writeValueAsString(generateResult.getClarifyOptions());
+                } catch (Exception e) {
+                    log.error("Failed to serialize clarify options", e);
+                }
+            }
             return ChatMessage.builder()
                     .sessionId(sessionId)
                     .role("assistant")
                     .content(generateResult != null ? generateResult.getExplanation() : "Unable to generate SQL, please check your question.")
+                    .clarifyOptions(clarifyJson)
                     .thinkingContent(blankToNull(thinkingContent))
                     .build();
         }

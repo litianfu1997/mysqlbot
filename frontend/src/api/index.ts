@@ -41,6 +41,8 @@ export interface ChatMessage {
     chartType?: string
     xAxis?: string
     yAxis?: string
+    chartOption?: string
+    clarifyOptions?: string
     suggestQuestions?: string
     thinkingContent?: string
     createdAt?: string
@@ -74,7 +76,7 @@ export interface TableRelation {
 }
 
 // SSE stream event types
-export type SseEventType = 'user_message' | 'status' | 'thinking' | 'content' | 'sql_generated' | 'sql_executed' | 'suggest_questions' | 'complete' | 'error'
+export type SseEventType = 'user_message' | 'status' | 'thinking' | 'content' | 'sql_generated' | 'sql_executed' | 'analysis' | 'suggest_questions' | 'clarification' | 'complete' | 'error'
 
 export interface SseEvent {
     type: SseEventType

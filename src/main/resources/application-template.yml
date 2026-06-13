@@ -41,10 +41,16 @@ mysqlbot:
     timeout-seconds: 30
     # LLM 生成 SQL 失败后最大重试次数
     max-retry: 3
-  # LLM 工具调用配置
+  # LLM 工具调用配置（SQL 生成 Agent）
   tool:
     # Agent 工具探索最大轮次（超出后强制输出答案）
     max-rounds: 8
+  # 制图 Agent 工具探查最大轮次
+  chart:
+    max-rounds: 3
+  # 追问 Agent 工具探查最大轮次
+  suggest:
+    max-rounds: 3
 
 logging:
   level:

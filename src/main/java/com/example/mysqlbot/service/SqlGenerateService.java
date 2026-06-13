@@ -182,6 +182,8 @@ public class SqlGenerateService {
         String sql = null;
         String explanation = llmResponse;
         List<String> tables = null;
+        boolean needClarification = false;
+        List<String> clarifyOptions = null;
 
         try {
             String jsonContent = extractJson(llmResponse);
@@ -197,6 +199,14 @@ public class SqlGenerateService {
                             for (com.fasterxml.jackson.databind.JsonNode t : tablesNode) tables.add(t.asText());
                         }
                     }
+                } else if (rootNode.has("action") && "clarify".equals(rootNode.get("action").asText())) {
+                    // 主动澄清：不执行 SQL，把 question 作为展示文本、options 作为可点选项
+                    needClarification = true;
+                    if (rootNode.has("question")) explanation = rootNode.get("question").asText();
+                    if (rootNode.has("options") && rootNode.get("options").isArray()) {
+                        clarifyOptions = new ArrayList<>();
+                        for (com.fasterxml.jackson.databind.JsonNode o : rootNode.get("options")) clarifyOptions.add(o.asText());
+                    }
                 } else if (rootNode.has("message")) {
                     explanation = rootNode.get("message").asText();
                 }
@@ -205,13 +215,15 @@ public class SqlGenerateService {
             log.warn("Failed to parse LLM response as JSON, trying regex: {}", e.getMessage());
         }
 
-        if (sql == null) sql = extractSqlOld(llmResponse);
+        if (sql == null && !needClarification) sql = extractSqlOld(llmResponse);
 
         return SqlGenerateResult.builder()
                 .sql(sql)
                 .explanation(explanation)
                 .tables(tables)
                 .success(sql != null)
+                .needClarification(needClarification)
+                .clarifyOptions(clarifyOptions)
                 .build();
     }
 
@@ -326,6 +338,10 @@ public class SqlGenerateService {
         private boolean success;
         private String errorMessage;
         private List<String> tables;
+        /** 模型在工具探索后判定问题歧义过大，需要用户澄清。 */
+        private boolean needClarification;
+        /** 澄清的可点选项（仅 needClarification 时非空）。 */
+        private List<String> clarifyOptions;
     }
 
     public int getMaxRetry() {

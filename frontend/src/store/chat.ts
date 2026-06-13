@@ -115,6 +115,21 @@ export const useChatStore = defineStore('chat', () => {
                                 syncAssistantMessage()
                             }
                             break
+                        case 'analysis':
+                            if (event.data) {
+                                assistantMsg.analysis = event.data.insight
+                                assistantMsg.chartType = event.data.chartType
+                                assistantMsg.chartOption = event.data.chartOption
+                                syncAssistantMessage()
+                            }
+                            break
+                        case 'clarification':
+                            if (event.data) {
+                                if (event.data.question) assistantMsg.content = event.data.question
+                                if (event.data.options) assistantMsg.clarifyOptions = JSON.stringify(event.data.options)
+                                syncAssistantMessage()
+                            }
+                            break
                         case 'complete':
                             // Replace placeholder with the final message from server
                             const finalMsg = event.data as ChatMessage

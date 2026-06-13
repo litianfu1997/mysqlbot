@@ -59,6 +59,18 @@ public class ChatMessage {
     @Column(name = "y_axis", length = 100)
     private String yAxis;
 
+    /**
+     * 制图 Agent 直出的完整 ECharts option（JSON）。前端注入 dataset.source 后渲染。
+     */
+    @Column(name = "chart_option", columnDefinition = "TEXT")
+    private String chartOption;
+
+    /**
+     * 主动澄清的可选项（JSON 数组）。非空时该消息为一条澄清请求。
+     */
+    @Column(name = "clarify_options", columnDefinition = "TEXT")
+    private String clarifyOptions;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
